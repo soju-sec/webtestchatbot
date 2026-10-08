@@ -1,0 +1,21 @@
+# Environment files
+.env
+.env.backup
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Dependencies
+node_modules/
+vendor/
+
+# n8n local data
+.n8n/
+n8n_data/

@@ -1,0 +1,351 @@
+{
+  "name": "Universal Chatbot Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chat-entry",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "18029c13-7521-4fa3-b1d6-d8dfaa0ceb91",
+      "name": "Webhook Chat Entry",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "chat-entry"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || {};\nconst conversationId = body.conversation_id || ('conv-' + Math.random().toString(36).substring(2, 9));\nconst userId = body.user_id || 'guest';\nconst message = body.message || '';\nconst channel = body.channel || 'web';\n\nreturn [{\n  json: {\n    conversation_id: conversationId,\n    user_id: userId,\n    message: message,\n    channel: channel,\n    backend_base_url: $env.BACKEND_BASE_URL || 'http://host.docker.internal:8000',\n    internal_api_key: $env.INTERNAL_API_KEY || ''\n  }\n}];"
+      },
+      "id": "e2f75841-f761-460d-9a84-e4612349ac39",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.backend_base_url }}/api/v1/conversations/{{ $json.conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "={{ $json.internal_api_key }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "764b87da-085e-4bb5-9519-e593c66f2c01",
+      "name": "Fetch Memory History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Normalize Input').item.json.backend_base_url }}/api/v1/ai/manifest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "={{ $('Normalize Input').item.json.internal_api_key }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "b1ec27ee-0012-4d2c-8822-793db5f86611",
+      "name": "Fetch AI Manifest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $('Normalize Input').item.json;\nconst historyResp = $('Fetch Memory History').item.json || {};\nconst manifestResp = $('Fetch AI Manifest').item.json || {};\n\nconst historyMessages = Array.isArray(historyResp.messages) ? historyResp.messages : [];\nconst endpoints = Array.isArray(manifestResp.endpoints) ? manifestResp.endpoints : [];\n\nlet systemInstruction = `Anda adalah asisten virtual cerdas terintegrasi.\\n`;\nsystemInstruction += `Berikut adalah daftar API endpoint backend yang tersedia di sistem:\\n`;\nsystemInstruction += JSON.stringify(endpoints, null, 2) + `\\n\\n`;\nsystemInstruction += `Jawablah pertanyaan pengguna dengan sopan, akurat, dan informatif berdasarkan konteks yang ada.`;\n\nconst contents = [];\n\n// Append history\nhistoryMessages.forEach(msg => {\n  contents.push({\n    role: msg.role === 'assistant' ? 'model' : 'user',\n    parts: [{ text: msg.message }]\n  });\n});\n\n// Append current user message\ncontents.push({\n  role: 'user',\n  parts: [{ text: inputData.message }]\n});\n\nreturn [{\n  json: {\n    conversation_id: inputData.conversation_id,\n    user_id: inputData.user_id,\n    message: inputData.message,\n    channel: inputData.channel,\n    backend_base_url: inputData.backend_base_url,\n    internal_api_key: inputData.internal_api_key,\n    gemini_api_key: $env.GEMINI_API_KEY || '',\n    payload: {\n      systemInstruction: {\n        parts: [{ text: systemInstruction }]\n      },\n      contents: contents,\n      generationConfig: {\n        temperature: 0.7,\n        maxOutputTokens: 1024\n      }\n    }\n  }\n}];"
+      },
+      "id": "e96ac5a4-94c7-43cf-bc82-59546b5a1cf1",
+      "name": "Build Gemini Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $json.gemini_api_key }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f5e921d2-06e1-45bc-b2cf-a78b5493c123",
+      "name": "Call Gemini API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const geminiResp = $input.first().json;\nconst promptData = $('Build Gemini Prompt').item.json;\n\nlet replyText = 'Maaf, saya tidak dapat memproses tanggapan saat ini.';\n\nif (geminiResp && geminiResp.candidates && geminiResp.candidates.length > 0) {\n  const parts = geminiResp.candidates[0].content && geminiResp.candidates[0].content.parts;\n  if (parts && parts.length > 0 && parts[0].text) {\n    replyText = parts[0].text;\n  }\n} else if (geminiResp && geminiResp.error) {\n  replyText = 'Terjadi kendala pada layanan AI: ' + (geminiResp.error.message || 'Error tidak diketahui');\n}\n\nreturn [{\n  json: {\n    conversation_id: promptData.conversation_id,\n    user_id: promptData.user_id,\n    user_message: promptData.message,\n    reply: replyText,\n    channel: promptData.channel,\n    backend_base_url: promptData.backend_base_url,\n    internal_api_key: promptData.internal_api_key\n  }\n}];"
+      },
+      "id": "cb1495c6-9467-4d7a-b5e0-811c039df84a",
+      "name": "Extract Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.backend_base_url }}/api/v1/conversations/{{ $json.conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "={{ $json.internal_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $json.user_id }}\",\n  \"role\": \"user\",\n  \"message\": {{ JSON.stringify($json.user_message) }},\n  \"channel\": \"{{ $json.channel }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "dd1821cf-7128-4444-a953-b23ff018b14a",
+      "name": "Save User Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1740,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Extract Response').item.json.backend_base_url }}/api/v1/conversations/{{ $('Extract Response').item.json.conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-API-Key",
+              "value": "={{ $('Extract Response').item.json.internal_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $('Extract Response').item.json.user_id }}\",\n  \"role\": \"assistant\",\n  \"message\": {{ JSON.stringify($('Extract Response').item.json.reply) }},\n  \"channel\": \"{{ $('Extract Response').item.json.channel }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "e23811cf-9128-4444-a953-c23ff018b15b",
+      "name": "Save Assistant Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1960,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"success\",\n  \"conversation_id\": \"{{ $('Extract Response').item.json.conversation_id }}\",\n  \"reply\": {{ JSON.stringify($('Extract Response').item.json.reply) }}\n}",
+        "options": {}
+      },
+      "id": "7df4a572-cf05-4c60-a246-86cbb2c7ae02",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2180,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Chat Entry": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Fetch Memory History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Memory History": {
+      "main": [
+        [
+          {
+            "node": "Fetch AI Manifest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch AI Manifest": {
+      "main": [
+        [
+          {
+            "node": "Build Gemini Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Gemini Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call Gemini API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Gemini API": {
+      "main": [
+        [
+          {
+            "node": "Extract Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Response": {
+      "main": [
+        [
+          {
+            "node": "Save User Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save User Message": {
+      "main": [
+        [
+          {
+            "node": "Save Assistant Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Assistant Message": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c4793237-7988-4cce-9d9f-074bfef796db",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

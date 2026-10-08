@@ -1,0 +1,15 @@
+stages:
+  - lint
+
+workflow-validation:
+  stage: lint
+  image: node:20-alpine
+  script:
+    - node -e "JSON.parse(require('fs').readFileSync('n8n/universal-chatbot-workflow.json'))"
+    - echo "Validasi format n8n JSON lolos."
+
+backend-syntax-check:
+  stage: lint
+  image: php:8.2-cli-alpine
+  script:
+    - find package-backend -name "*.php" -exec php -l {} \;
