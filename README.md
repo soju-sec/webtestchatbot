@@ -113,4 +113,12 @@ Cukup tambahkan satu script tag di layout aplikasi web Anda (`app.blade.php` ata
 
 ## 💡 4. Menambahkan Data / API Baru untuk Chatbot
 
-Lihat panduan lengkap di **[MANUAL_INTEGRASI.md](MANUAL_INTEGRASI.md)** untuk petunjuk langkah demi langkah mendaftarkan endpoint atau metrik baru di `config/ai_registry.php` tanpa perlu menyentuh n8n.
+Anda bisa mendaftarkan endpoint/kemampuan baru menggunakan script otomatis:
+```bash
+./register-ai-capability.sh
+```
+Atau via CLI flag satu baris:
+```bash
+./register-ai-capability.sh --action="get_products" --path="/api/v1/products" --desc="Daftar produk aktif"
+```
+Lihat panduan lengkap di **[MANUAL_INTEGRASI.md](MANUAL_INTEGRASI.md)** untuk petunjuk langkah demi langkah mendaftarkan endpoint atau metrik baru tanpa perlu menyentuh n8n.

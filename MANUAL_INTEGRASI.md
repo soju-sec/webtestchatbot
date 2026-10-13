@@ -37,9 +37,39 @@ Ketika Anda bertanya tentang data yang belum didaftarkan (misalnya data revenue 
 
 ---
 
-## 🛠️ 2. Cara Mendaftarkan API Baru agar AI Bisa Membaca Data
+## 🛠️ 2. Cara Cepat: Menggunakan Bash Script Registrasi API
 
-Setiap kali Anda ingin AI mengetahui data baru (misalnya laporan penjualan, stok produk, rincian per bulan, dll.), ikuti 2 langkah mudah berikut:
+Tersedia script otomatis **`register-ai-capability.sh`** sehingga Anda tidak perlu mengedit `config/ai_registry.php` secara manual:
+
+### A. Mode Interaktif (Tanya-Jawab di Terminal)
+Cukup jalankan script di root project backend Anda:
+```bash
+./register-ai-capability.sh
+```
+Script akan menanyakan nama action, endpoint path, deskripsi, dan contoh data secara interaktif.
+
+### B. Mode CLI / Satu Baris Perintah
+Anda juga bisa mendaftarkan endpoint langsung via argumen:
+```bash
+./register-ai-capability.sh \
+  --action="get_best_sellers" \
+  --method="GET" \
+  --path="/api/v1/store/best-sellers" \
+  --desc="Melihat daftar produk paling laris di toko" \
+  --data='[{"product": "Smartwatch", "price": "$120", "orders": 142}]'
+```
+
+Script akan:
+1. Otomatis memvalidasi dan memodifikasi `config/ai_registry.php` tanpa merusak sintaks PHP.
+2. Memperbarui (*update*) jika action sudah ada, atau menambahkan (*append*) jika baru.
+3. Melakukan linting validasi sintaks PHP (`php -l`).
+4. Seketika itu juga AI Gemini via n8n langsung mengenali data baru tersebut!
+
+---
+
+## 📝 3. Cara Manual: Mendaftarkan API Baru
+
+Jika Anda lebih memilih mendaftarkan secara manual:
 
 ### Langkah 1: Buat Endpoint Data di Backend (`routes/api.php`)
 
