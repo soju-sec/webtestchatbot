@@ -37,33 +37,44 @@ Ketika Anda bertanya tentang data yang belum didaftarkan (misalnya data revenue 
 
 ---
 
-## 🛠️ 2. Cara Cepat: Menggunakan Bash Script Registrasi API
+## 🛠️ 2. Cara Cepat: Otomatisasi Registrasi API Universal
 
-Tersedia script otomatis **`register-ai-capability.sh`** sehingga Anda tidak perlu mengedit `config/ai_registry.php` secara manual:
+Tersedia script universal **`register-ai-capability.sh`** yang mendukung berbagai metode registrasi otomatis:
 
-### A. Mode Interaktif (Tanya-Jawab di Terminal)
-Cukup jalankan script di root project backend Anda:
+### A. Cukup Berikan Link URL Endpoint (`--url`)
+Anda tidak perlu mengisi action name, path, atau contoh data satu per satu. Cukup berikan link endpoint API-nya:
+```bash
+./register-ai-capability.sh --url="http://localhost:8088/api/v1/store/metrics"
+```
+Script akan otomatis:
+1. Mengirim cURL ke URL tersebut (beserta header otentikasi internal jika ada).
+2. Mengekstrak response data JSON.
+3. Menentukan action name dan deskripsi dari URL path secara otomatis.
+4. Mendaftarkannya ke manifest!
+
+### B. Auto-Scan Semua Routes Project (`--scan`)
+Ingin mendaftarkan SEMUA route API di dalam project sekaligus dengan 1 perintah?
+```bash
+./register-ai-capability.sh --scan
+```
+Script akan otomatis mendeteksi framework (seperti Laravel route list atau file OpenAPI lokal), menyaring route internal, dan mendaftarkan seluruh API bisnis project Anda ke dalam manifest!
+
+### C. Impor dari Link / File Swagger OpenAPI (`--spec`) — Universal Semua Bahasa
+Jika project backend Anda (Express, FastAPI, Spring Boot, Go, Laravel, dll.) memiliki dokumentasi Swagger / OpenAPI:
+```bash
+# Dari URL online / endpoint swagger
+./register-ai-capability.sh --spec="http://localhost:8000/docs/openapi.json"
+
+# Atau dari file lokal
+./register-ai-capability.sh --spec="./swagger.json"
+```
+Script akan mem-parse seluruh `paths`, method, deskripsi, dan parameter dari spesifikasi OpenAPI tersebut ke manifest secara instan!
+
+### D. Mode Interaktif (Tanya-Jawab di Terminal)
 ```bash
 ./register-ai-capability.sh
 ```
-Script akan menanyakan nama action, endpoint path, deskripsi, dan contoh data secara interaktif.
-
-### B. Mode CLI / Satu Baris Perintah
-Anda juga bisa mendaftarkan endpoint langsung via argumen:
-```bash
-./register-ai-capability.sh \
-  --action="get_best_sellers" \
-  --method="GET" \
-  --path="/api/v1/store/best-sellers" \
-  --desc="Melihat daftar produk paling laris di toko" \
-  --data='[{"product": "Smartwatch", "price": "$120", "orders": 142}]'
-```
-
-Script akan:
-1. Otomatis memvalidasi dan memodifikasi `config/ai_registry.php` tanpa merusak sintaks PHP.
-2. Memperbarui (*update*) jika action sudah ada, atau menambahkan (*append*) jika baru.
-3. Melakukan linting validasi sintaks PHP (`php -l`).
-4. Seketika itu juga AI Gemini via n8n langsung mengenali data baru tersebut!
+Script akan menanyakan URL atau action name, path, dan deskripsi secara bertahap.
 
 ---
 
