@@ -1,4 +1,5 @@
 {
+  "id": "universal-chatbot",
   "name": "Universal Chatbot Workflow",
   "nodes": [
     {
@@ -101,7 +102,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const inputData = $('Normalize Input').item.json;\nconst historyResp = $('Fetch Memory History').item.json || {};\nconst manifestResp = $('Fetch AI Manifest').item.json || {};\n\nconst historyMessages = Array.isArray(historyResp.messages) ? historyResp.messages : [];\nconst endpoints = Array.isArray(manifestResp.endpoints) ? manifestResp.endpoints : [];\n\nlet systemInstruction = `Anda adalah asisten virtual cerdas terintegrasi.\\n`;\nsystemInstruction += `Berikut adalah daftar API endpoint backend yang tersedia di sistem:\\n`;\nsystemInstruction += JSON.stringify(endpoints, null, 2) + `\\n\\n`;\nsystemInstruction += `Jawablah pertanyaan pengguna dengan sopan, akurat, dan informatif berdasarkan konteks yang ada.`;\n\nconst contents = [];\n\n// Append history\nhistoryMessages.forEach(msg => {\n  contents.push({\n    role: msg.role === 'assistant' ? 'model' : 'user',\n    parts: [{ text: msg.message }]\n  });\n});\n\n// Append current user message\ncontents.push({\n  role: 'user',\n  parts: [{ text: inputData.message }]\n});\n\nreturn [{\n  json: {\n    conversation_id: inputData.conversation_id,\n    user_id: inputData.user_id,\n    message: inputData.message,\n    channel: inputData.channel,\n    backend_base_url: inputData.backend_base_url,\n    internal_api_key: inputData.internal_api_key,\n    gemini_api_key: $env.GEMINI_API_KEY || '',\n    payload: {\n      systemInstruction: {\n        parts: [{ text: systemInstruction }]\n      },\n      contents: contents,\n      generationConfig: {\n        temperature: 0.7,\n        maxOutputTokens: 1024\n      }\n    }\n  }\n}];"
+        "jsCode": "const inputData = $('Normalize Input').item.json;\nconst historyResp = $('Fetch Memory History').item.json || {};\nconst manifestResp = $('Fetch AI Manifest').item.json || {};\n\nconst historyMessages = Array.isArray(historyResp.messages) ? historyResp.messages : [];\nconst endpoints = Array.isArray(manifestResp.endpoints) ? manifestResp.endpoints : [];\n\nlet systemInstruction = `Anda adalah asisten virtual cerdas terintegrasi untuk dashboard Velzon Store.\\n`;\nsystemInstruction += `Berikut adalah data dan API endpoint backend yang tersedia di sistem:\\n`;\nsystemInstruction += JSON.stringify(endpoints, null, 2) + `\\n\\n`;\nsystemInstruction += `Tugas Anda: Jawablah pertanyaan pengguna secara langsung dengan data konkret yang tersedia (misalnya total earnings, balance, pesanan/orders, transaksi). Gunakan format HTML sederhana seperti <b>, <br> agar rapi dan mudah dibaca.`;\n\nconst contents = [];\n\n// Append history\nhistoryMessages.forEach(msg => {\n  contents.push({\n    role: msg.role === 'assistant' ? 'model' : 'user',\n    parts: [{ text: msg.message }]\n  });\n});\n\n// Append current user message\ncontents.push({\n  role: 'user',\n  parts: [{ text: inputData.message }]\n});\n\nreturn [{\n  json: {\n    conversation_id: inputData.conversation_id,\n    user_id: inputData.user_id,\n    message: inputData.message,\n    channel: inputData.channel,\n    backend_base_url: inputData.backend_base_url,\n    internal_api_key: inputData.internal_api_key,\n    gemini_api_key: $env.GEMINI_API_KEY || '',\n    payload: {\n      systemInstruction: {\n        parts: [{ text: systemInstruction }]\n      },\n      contents: contents,\n      generationConfig: {\n        temperature: 0.7,\n        maxOutputTokens: 1024\n      }\n    }\n  }\n}];"
       },
       "id": "e96ac5a4-94c7-43cf-bc82-59546b5a1cf1",
       "name": "Build Gemini Prompt",
@@ -115,7 +116,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{ $json.gemini_api_key }}",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $json.gemini_api_key }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.payload) }}",

@@ -1,27 +1,23 @@
-version: '3.8'
-
 services:
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
     container_name: universal_chatbot_n8n
     restart: unless-stopped
-    ports:
-      - "${N8N_PORT:-5678}:5678"
+    network_mode: host
     environment:
-      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_HOST=localhost
       - N8N_PORT=5678
-      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - N8N_PROTOCOL=http
       - NODE_ENV=production
-      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
-      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Asia/Jakarta}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Asia/Jakarta
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - BACKEND_BASE_URL=${BACKEND_BASE_URL:-http://host.docker.internal:8000}
+      - BACKEND_BASE_URL=${BACKEND_BASE_URL}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
     volumes:
       - n8n_data:/home/node/.n8n
       - ./n8n:/backup/n8n:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
 volumes:
   n8n_data:

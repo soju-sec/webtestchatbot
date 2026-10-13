@@ -111,7 +111,11 @@
   function appendMsg(role, text) {
     const div = document.createElement('div');
     div.className = `ai-msg ${role}`;
-    div.innerText = text;
+    if (role === 'bot') {
+      div.innerHTML = text;
+    } else {
+      div.innerText = text;
+    }
     msgContainer.appendChild(div);
     msgContainer.scrollTop = msgContainer.scrollHeight;
   }

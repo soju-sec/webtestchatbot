@@ -1,6 +1,8 @@
 # Universal AI Chatbot (n8n + Laravel + Vanilla JS)
 
-Arsitektur chatbot cerdas universal berbasis orkestrasi **n8n** dan **Google Gemini**, dirancang *plug-and-play* untuk proyek backend (Laravel/PHP) dan web frontend apa pun.
+Arsitektur chatbot cerdas universal berbasis orkestrasi **n8n** dan **Google Gemini 2.5 Flash**, dirancang *plug-and-play* dan *Manifest-Driven* untuk proyek backend (Laravel/PHP) dan web frontend apa pun.
+
+> 📖 **Panduan Lengkap & Tutorial Menambahkan API Baru**: Silakan baca [MANUAL_INTEGRASI.md](MANUAL_INTEGRASI.md).
 
 ---
 
@@ -8,17 +10,15 @@ Arsitektur chatbot cerdas universal berbasis orkestrasi **n8n** dan **Google Gem
 
 ```plaintext
 chatbot/
-├── .gitlab-ci.yml
-├── docker-compose.yml
-├── .env.example
-├── .gitignore
-├── install.sh
-├── README.md
+├── docker-compose.yml        # Konfigurasi container n8n orchestrator
+├── .env.example              # Template variabel lingkungan
+├── MANUAL_INTEGRASI.md       # Panduan lengkap integrasi & pendaftaran capability
+├── README.md                 # Ringkasan cepat
 ├── n8n/
-│   └── universal-chatbot-workflow.json
-├── package-backend/          # Salin folder ini ke proyek backend mana pun
+│   └── universal-chatbot-workflow.json # Alur orkestrasi n8n (Gemini 2.5 Flash)
+├── package-backend/          # Salin folder ini ke proyek backend Laravel Anda
 │   ├── config/
-│   │   └── ai_registry.php   # Tempat mendaftarkan endpoint API proyek
+│   │   └── ai_registry.php   # Tempat mendaftarkan capability/endpoint API proyek
 │   ├── Controllers/
 │   │   ├── AiCapabilityController.php
 │   │   └── ConversationMemoryController.php
@@ -27,8 +27,8 @@ chatbot/
 │   └── migrations/
 │       └── create_conversation_messages_table.php
 └── package-frontend/         # Widget chat mandiri (bisa di-embed via 1 tag script)
-    ├── chat-widget.js
-    ├── chat-widget.css
+    ├── chat-widget.js        # Script widget (mendukung HTML tag & formatting)
+    ├── chat-widget.css       # Style widget
     └── index.html            # Halaman demo integrasi
 ```
 
@@ -38,42 +38,50 @@ chatbot/
 
 ### 1. Setup & Jalankan Orkestrator n8n
 
-1. Jalankan script instalasi:
+1. Salin `.env.example` ke `.env`:
    ```bash
-   ./install.sh
+   cp .env.example .env
    ```
-2. Sesuaikan konfigurasi di `.env`:
-   - `GEMINI_API_KEY`: Kunci API Google Gemini dari Google AI Studio.
-   - `INTERNAL_API_KEY`: Kunci otentikasi internal antara n8n dan backend.
-   - `BACKEND_BASE_URL`: URL backend Laravel (contoh: `http://host.docker.internal:8000`).
-3. Jalankan container n8n:
+2. Isi `GEMINI_API_KEY` (dapatkan gratis di [Google AI Studio](https://aistudio.google.com/)).
+3. Tentukan `BACKEND_BASE_URL` (contoh: `http://127.0.0.1:8088` untuk Linux host, atau `http://host.docker.internal:8000`).
+4. Jalankan container n8n:
    ```bash
    docker compose up -d
    ```
-4. Buka n8n di browser pada `http://localhost:5678`.
-5. Import workflow dari `n8n/universal-chatbot-workflow.json` dan aktifkan workflow.
+5. Import workflow:
+   ```bash
+   docker exec universal_chatbot_n8n n8n import:workflow --input=/backup/n8n/universal-chatbot-workflow.json
+   docker exec universal_chatbot_n8n n8n publish:workflow --id=universal-chatbot
+   docker restart universal_chatbot_n8n
+   ```
 
 ---
 
-## 🛠️ 1. Integrasi Backend (Laravel/PHP)
+## 🛠️ 2. Integrasi Backend (Laravel/PHP)
 
-Cukup salin isi folder `package-backend/` ke proyek Laravel Anda:
-
-1. Salin `config/ai_registry.php` ke `config/ai_registry.php`.
-2. Salin Controllers ke `app/Http/Controllers/Api/`:
-   - `AiCapabilityController.php`
-   - `ConversationMemoryController.php`
-3. Salin Middleware ke `app/Http/Middleware/VerifyInternalApiKey.php`.
-4. Salin migrasi ke `database/migrations/` dan jalankan:
+1. Salin file dari `package-backend/` ke project Laravel Anda:
+   - `config/ai_registry.php` -> `config/ai_registry.php`
+   - `Controllers/*` -> `app/Http/Controllers/Api/`
+   - `Middleware/*` -> `app/Http/Middleware/`
+   - `migrations/*` -> `database/migrations/`
+2. Jalankan migrasi:
    ```bash
    php artisan migrate
    ```
-5. Daftarkan rute API di `routes/api.php`:
+3. Daftarkan route di `routes/api.php`:
    ```php
    use App\Http\Controllers\Api\AiCapabilityController;
    use App\Http\Controllers\Api\ConversationMemoryController;
    use App\Http\Middleware\VerifyInternalApiKey;
 
+   // Proxy route untuk menghindari CORS dari widget ke n8n
+   Route::post('/webhook/chat-entry', function (Request $request) {
+       $n8nUrl = env('N8N_WEBHOOK_URL', 'http://127.0.0.1:5678/webhook/chat-entry');
+       $response = \Illuminate\Support\Facades\Http::timeout(60)->post($n8nUrl, $request->all());
+       return response()->json($response->json(), $response->status());
+   });
+
+   // Endpoint internal untuk n8n
    Route::middleware([VerifyInternalApiKey::class])->prefix('v1')->group(function () {
        Route::get('/ai/manifest', [AiCapabilityController::class, 'manifest']);
        Route::get('/conversations/{conversationId}/messages', [ConversationMemoryController::class, 'getMessages']);
@@ -81,26 +89,28 @@ Cukup salin isi folder `package-backend/` ke proyek Laravel Anda:
    });
    ```
 
+> ⚠️ **Catatan Penting saat Menjalankan Native**:
+> Jika menjalankan via `php artisan serve`, gunakan perintah multi-worker untuk mencegah deadlock:
+> ```bash
+> PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=0.0.0.0 --port=8088 --no-reload
+> ```
+
 ---
 
-## 💻 2. Integrasi Frontend (Vanilla JS)
+## 💻 3. Integrasi Frontend Widget
 
-Cukup sematkan script widget ke template web atau HTML mana pun:
+Cukup tambahkan satu script tag di layout aplikasi web Anda (`app.blade.php` atau `index.html`):
 
 ```html
 <script 
-  src="/path-to/chat-widget.js" 
-  data-webhook="http://localhost:5678/webhook/chat-entry" 
-  data-user-id="USER-123">
+  src="/chat-widget.js" 
+  data-webhook="/api/webhook/chat-entry" 
+  data-user-id="user-123">
 </script>
 ```
 
-Widget akan otomatis membuat bubble chat mengambang dan menangani seluruh siklus percakapan dengan webhook n8n.
-
 ---
 
-## 🔄 3. CI/CD Pipeline (.gitlab-ci.yml)
+## 💡 4. Menambahkan Data / API Baru untuk Chatbot
 
-Pipeline GitLab CI sudah disiapkan untuk memvalidasi:
-- Sintaks dan struktur JSON workflow n8n (`n8n/universal-chatbot-workflow.json`).
-- Sintaks PHP untuk seluruh file di dalam `package-backend/`.
+Lihat panduan lengkap di **[MANUAL_INTEGRASI.md](MANUAL_INTEGRASI.md)** untuk petunjuk langkah demi langkah mendaftarkan endpoint atau metrik baru di `config/ai_registry.php` tanpa perlu menyentuh n8n.
