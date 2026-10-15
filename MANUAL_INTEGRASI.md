@@ -1,211 +1,186 @@
 # 📘 MANUAL INTEGRASI & PANDUAN PENGEMBANGAN UNIVERSAL CHATBOT
 
-Panduan lengkap arsitektur, integrasi, dan cara mendaftarkan API baru agar AI Chatbot dapat membaca dan menyajikan data dari aplikasi Anda.
+Panduan lengkap arsitektur, integrasi, keamanan data sensitif (Anti-PII), serta AI Intent Parser dengan Multi-Turn Conversation Memory.
 
 ---
 
-## 🧠 1. Konsep Arsitektur: Manifest-Driven AI Capability
+## 🧠 1. Konsep Arsitektur: AI Intent Parser & Privacy Shield
 
-Universal Chatbot ini menggunakan arsitektur **Manifest-Driven Capabilities** yang menghubungkan Frontend Web, Orkestrator n8n, Google Gemini (LLM), dan Backend Host (Laravel/PHP).
+Sistem ini dirancang dengan prinsip **Zero Trust Privacy**:
+1. **AI Agent Hanya Bertugas sebagai INTENT PARSER**: AI tidak memiliki akses langsung untuk menelusuri database ataupun mengeksekusi query data pribadi pengguna secara liar. AI murni mengklasifikasikan maksud (*intent*), mengekstrak slot/parameter yang relevan, serta memanfaatkan **Riwayat Memori Percakapan (*Multi-Turn Memory*)** untuk menjaga kontinuitas konteks.
+2. **Anti-PII Privacy Shield (Data Masking Otomatis)**: Segala data pribadi pengguna yang sensitif seperti **Nomor KTP / NIK, Nomor HP, Email, Nomor Kartu Kredit, PIN, dan Password** otomatis disaring (*redacted*) menggunakan regex tokenisasi sebelum sampai ke model AI (Google Gemini) maupun sebelum disimpan ke database riwayat memori.
+3. **Safe Programmatic Fulfillment**: Data bisnis atau hasil query diambil dan diformat secara terprogram di level sistem/orkestrator backend, bukan ditebak atau dihalusinasikan oleh LLM.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User as Pengguna (Web Widget)
+    participant Privacy as Anti-PII Privacy Shield
     participant Laravel as Backend (Laravel / Host)
     participant n8n as n8n Orchestrator
-    participant Gemini as Google Gemini 2.5 Flash
+    participant Gemini as Google Gemini (Intent Parser)
     
-    User->>Laravel: 1. Kirim pesan ("revenue bulan april berapa?")
+    User->>Laravel: 1. Kirim pesan ("Cek order saya, NIK 3201... HP 0812...")
     Laravel->>n8n: 2. Proxy request ke Webhook /webhook/chat-entry
-    n8n->>Laravel: 3. Ambil Manifest (/api/v1/ai/manifest) & Riwayat Chat
-    Laravel-->>n8n: 4. Kembalikan Daftar Kemampuan & Data Terbaru
-    n8n->>Gemini: 5. Kirim Prompt + Konteks Manifest Data Terkini
-    Gemini-->>n8n: 6. Respon terstruktur dengan data yang cocok
-    n8n->>Laravel: 7. Simpan percakapan ke SQLite/DB
-    n8n-->>Laravel: 8. Kembalikan respon bot
-    Laravel-->>User: 9. Tampilkan jawaban pada chat widget
+    n8n->>Privacy: 3. Sanitasi PII (Masking NIK -> [NOMOR_KTP_DISAMARKAN], HP -> [NOMOR_HP_DISAMARKAN])
+    n8n->>Laravel: 4. Ambil Manifest Intent (/api/v1/ai/manifest) & Riwayat Memori
+    Laravel-->>n8n: 5. Kembalikan Daftar Intent & Pesan Riwayat (Bebas PII)
+    n8n->>Gemini: 6. Kirim Pesan Tersanitasi + Konteks Memori + Skema Intent
+    Note over Gemini: Gemini bertindak MURNI sebagai INTENT PARSER<br/>(Output JSON: intent, confidence, parameters)
+    Gemini-->>n8n: 7. Respon Terstruktur JSON (Intent: check_order, Params: {...})
+    n8n->>n8n: 8. Eksekusi Fulfillment Data Bisnis secara Aman & Terprogram
+    n8n->>Laravel: 9. Simpan Pesan Tersanitasi & Metadata Intent ke DB
+    n8n-->>Laravel: 10. Kembalikan Respon Chatbot Aman
+    Laravel-->>User: 11. Tampilkan Jawaban pada Chat Widget
 ```
-
-### Mengapa AI Menjawab *"Tidak memiliki data spesifik..."* jika belum didaftarkan?
-AI tidak membaca database Anda secara langsung tanpa izin. AI **hanya mengetahui informasi dan endpoint yang didaftarkan pada Manifest** (`/api/v1/ai/manifest` atau `config/ai_registry.php`).
-
-Ketika Anda bertanya tentang data yang belum didaftarkan (misalnya data revenue bulanan):
-- AI memeriksa manifest dan tidak menemukan informasi mengenai bulan tersebut.
-- AI secara jujur menjawab bahwa data spesifik tersebut belum tersedia.
-- **Solusinya**: Cukup daftarkan endpoint/data baru tersebut di `config/ai_registry.php` dan `routes/api.php`!
 
 ---
 
-## 🛠️ 2. Cara Cepat: Otomatisasi Registrasi API Universal
+## 🛡️ 2. Mekanisme Keamanan: Anti-PII Protection Layer
 
-Tersedia script universal **`register-ai-capability.sh`** yang mendukung berbagai metode registrasi otomatis:
+Sistem menerapkan proteksi berlapis (*Defense-in-Depth*) agar AI tidak dapat membaca data sensitif:
 
-### A. Cukup Berikan Link URL Endpoint (`--url`)
-Anda tidak perlu mengisi action name, path, atau contoh data satu per satu. Cukup berikan link endpoint API-nya:
+| Jenis Data Sensitif | Pola Deteksi | Hasil Masking |
+| :--- | :--- | :--- |
+| **KTP / NIK** | 16 digit angka Indonesia (misal `3201...` atau `3171-....`) | `[NOMOR_KTP_DISAMARKAN]` |
+| **Nomor HP / Telepon** | Format Indonesia `+628...`, `628...`, `08xx...` | `[NOMOR_HP_DISAMARKAN]` |
+| **Email** | Alamat email `user@domain.com` | `[EMAIL_DISAMARKAN]` |
+| **Kartu Kredit / Debit** | 13 s/d 19 digit angka kartu | `[KARTU_KREDIT_DISAMARKAN]` |
+| **PIN, Password, OTP** | Kata kunci rahasia (`pin: 1234`, `password: ...`) | `[PIN/PASSWORD_DISAMARKAN]` |
+
+### Tempat Penerapan Sanitasi:
+1. **Frontend Widget (`package-frontend/chat-widget.js`)**: Memiliki filter awal sebelum pengiriman.
+2. **Orkestrator n8n (`Normalize Input` & `Build Gemini Prompt`)**: Memfilter seluruh pesan masuk serta seluruh pesan riwayat memori sebelum prompt Gemini disusun.
+3. **Backend Laravel (`app/Services/PiiSanitizer.php`)**: Memastikan endpoint penyimpanan `/api/v1/conversations/{id}/messages` dan pembacaan memori bebas dari PII.
+
+---
+
+## 🎯 3. AI Agent Sebagai Intent Parser dengan Memory
+
+### Kenapa Intent Parser?
+- AI tidak memegang kunci database secara langsung.
+- AI menghasilkan format JSON yang terukur:
+```json
+{
+  "intent": "get_monthly_revenue",
+  "confidence": 0.98,
+  "parameters": {
+    "month": "Apr"
+  },
+  "requires_action": true,
+  "matched_action": "get_monthly_revenue",
+  "context_note": "Pengguna menanyakan performa revenue untuk bulan April",
+  "reply": "Berikut rincian performa revenue untuk bulan April..."
+}
+```
+
+### Bagaimana Memory Membantu?
+Dengan memori multi-turn yang bersih dari PII:
+- **Turn 1**: Pengguna: *"Tolong tampilkan performa revenue toko."* -> Intent: `get_store_metrics`.
+- **Turn 2**: Pengguna: *"Kalau bulan april saja bagaimana?"* -> Dengan memori, AI memahami bahwa maksud pengguna adalah beralih ke rincian bulanan untuk bulan April (`get_monthly_revenue`, `month: "Apr"`).
+- **Turn 3**: Pengguna: *"Bulan depannya lagi?"* -> AI menganalisis memori percakapan dan menyimpulkan bulan setelah April adalah Mei (`month: "May"`).
+
+---
+
+## 🛠️ 4. Cara Otomatis: Registrasi API Baru via Script
+
+Gunakan script universal **`register-ai-capability.sh`** untuk mendaftarkan endpoint baru ke manifest:
+
+### A. Memberikan Link URL Endpoint Langsung (`--url`)
 ```bash
 ./register-ai-capability.sh --url="http://localhost:8088/api/v1/store/metrics"
 ```
-Script akan otomatis:
-1. Mengirim cURL ke URL tersebut (beserta header otentikasi internal jika ada).
-2. Mengekstrak response data JSON.
-3. Menentukan action name dan deskripsi dari URL path secara otomatis.
-4. Mendaftarkannya ke manifest!
 
 ### B. Auto-Scan Semua Routes Project (`--scan`)
-Ingin mendaftarkan SEMUA route API di dalam project sekaligus dengan 1 perintah?
 ```bash
 ./register-ai-capability.sh --scan
 ```
-Script akan otomatis mendeteksi framework (seperti Laravel route list atau file OpenAPI lokal), menyaring route internal, dan mendaftarkan seluruh API bisnis project Anda ke dalam manifest!
 
-### C. Impor dari Link / File Swagger OpenAPI (`--spec`) — Universal Semua Bahasa
-Jika project backend Anda (Express, FastAPI, Spring Boot, Go, Laravel, dll.) memiliki dokumentasi Swagger / OpenAPI:
+### C. Impor dari File / URL Swagger OpenAPI Spec (`--spec`)
 ```bash
-# Dari URL online / endpoint swagger
-./register-ai-capability.sh --spec="http://localhost:8000/docs/openapi.json"
-
-# Atau dari file lokal
 ./register-ai-capability.sh --spec="./swagger.json"
 ```
-Script akan mem-parse seluruh `paths`, method, deskripsi, dan parameter dari spesifikasi OpenAPI tersebut ke manifest secara instan!
 
-### D. Mode Interaktif (Tanya-Jawab di Terminal)
+### D. Mode Interaktif di Terminal
 ```bash
 ./register-ai-capability.sh
 ```
-Script akan menanyakan URL atau action name, path, dan deskripsi secara bertahap.
 
 ---
 
-## 📝 3. Cara Manual: Mendaftarkan API Baru
-
-Jika Anda lebih memilih mendaftarkan secara manual:
+## 📝 5. Cara Manual Mendaftarkan API Baru
 
 ### Langkah 1: Buat Endpoint Data di Backend (`routes/api.php`)
-
-Pastikan endpoint dilindungi middleware `VerifyInternalApiKey`:
-
 ```php
 Route::middleware([VerifyInternalApiKey::class])->prefix('v1')->group(function () {
-
-    // Contoh: Endpoint data performa revenue bulanan
     Route::get('/store/revenue/monthly', function () {
         return response()->json([
             'status' => 'success',
             'data' => [
                 'Jan' => ['orders' => 34, 'earnings' => '$89.25k', 'refunds' => 8],
-                'Feb' => ['orders' => 65, 'earnings' => '$98.58k', 'refunds' => 12],
-                'Mar' => ['orders' => 46, 'earnings' => '$68.74k', 'refunds' => 7],
                 'Apr' => ['orders' => 68, 'earnings' => '$108.87k', 'refunds' => 17],
-                // ... bulan lainnya
             ]
         ]);
     });
-
 });
 ```
 
 ### Langkah 2: Daftarkan ke Manifest (`config/ai_registry.php`)
-
-Tambahkan entri baru ke dalam array `'endpoints'`:
-
 ```php
 return [
     'endpoints' => [
-        // ... endpoint yang sudah ada
-
         [
             'action' => 'get_monthly_revenue',
             'method' => 'GET',
             'path' => '/api/v1/store/revenue/monthly',
-            'description' => 'Melihat rincian performa revenue, pendapatan/earnings, jumlah pesanan, dan refund bulanan (Januari s/d Desember)',
+            'description' => 'Melihat rincian performa revenue bulanan',
             'params' => ['month', 'year'],
             'current_data' => [
-                'Jan' => ['orders' => 34, 'earnings' => '$89.25k', 'refunds' => 8],
                 'Apr' => ['orders' => 68, 'earnings' => '$108.87k', 'refunds' => 17],
-                'Nov' => ['orders' => 63, 'earnings' => '$88.51k', 'refunds' => 12],
-                // Data snapshot ini langsung dibaca Gemini dari manifest
             ]
         ],
     ],
 ];
 ```
 
-> [!TIP]
-> **Tanpa Sentuh n8n!** 
-> Begitu `config/ai_registry.php` disimpan, n8n dan Gemini secara otomatis langsung mengetahui kapabilitas baru ini pada query berikutnya. Anda tidak perlu merestart atau mengedit n8n workflow.
-
 ---
 
-## ⚡ 3. Menjalankan Laravel Natively (Penting: Pencegahan Deadlock)
+## ⚡ 6. Menjalankan Laravel Natively (Pencegahan Deadlock)
 
-Jika Anda menjalankan Laravel secara native di host lokal menggunakan `php artisan serve`:
-
-### Masalah Single-Worker Deadlock
-Secara default, `php artisan serve` hanya berjalan dengan 1 worker (single-threaded).
-1. Widget mengirim request ke Laravel `/api/webhook/chat-entry`.
-2. Laravel menahan koneksi dan menghubungi n8n.
-3. n8n menghubungi balik Laravel `/api/v1/ai/manifest`.
-4. Karena worker Laravel sedang sibuk menunggu n8n, request balik dari n8n tertahan (*deadlock* hingga timeout 60 detik).
-
-### Solusi:
-Jalankan `php artisan serve` dengan multi-worker dan flag `--no-reload`:
+Jika menjalankan Laravel via `php artisan serve`, gunakan multi-worker:
 
 ```bash
 PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=0.0.0.0 --port=8088 --no-reload
 ```
 
-*Catatan: Flag `--no-reload` wajib disertakan agar PHP CLI mengaktifkan multi-process worker.*
-
 ---
 
-## 🐳 4. Panduan Menjalankan n8n Orchestrator
+## 🐳 7. Setup & Import Orkestrator n8n
 
-### 1. File Konfigurasi `.env`
-Pastikan file `.env` di folder project chatbot memiliki pengaturan berikut:
-
+1. Sesuaikan variabel `.env`:
 ```env
-# Port & URL n8n
-N8N_PORT=5678
-N8N_HOST=localhost
-N8N_PROTOCOL=http
-WEBHOOK_URL=http://localhost:5678/
-GENERIC_TIMEZONE=Asia/Jakarta
-
-# API Key Google Gemini (Ambil di https://aistudio.google.com/)
 GEMINI_API_KEY=AIzaSy...
-
-# URL Backend Host
-# - Pada Linux dengan network_mode: host -> http://127.0.0.1:8088
-# - Pada Docker Bridge / Windows / Mac  -> http://host.docker.internal:8088
 BACKEND_BASE_URL=http://127.0.0.1:8088
-
-# Kunci rahasia internal komunikasi n8n <-> Laravel
 INTERNAL_API_KEY=your_secure_internal_api_key_here
 ```
 
-### 2. Jalankan Container
+2. Jalankan container:
 ```bash
 docker compose up -d
 ```
 
-### 3. Import & Aktivasi Workflow
-Workflow sudah berada di `n8n/universal-chatbot-workflow.json`.
-Untuk mengimpor via CLI:
+3. Import & publish workflow:
 ```bash
 docker exec universal_chatbot_n8n n8n import:workflow --input=/backup/n8n/universal-chatbot-workflow.json
 docker exec universal_chatbot_n8n n8n publish:workflow --id=universal-chatbot
 docker restart universal_chatbot_n8n
 ```
 
-Atau buka antarmuka n8n di browser: `http://localhost:5678`, lalu aktifkan toggle **Active** pada workflow *Universal Chatbot Workflow*.
-
 ---
 
-## 💻 5. Integrasi Frontend Widget
+## 💻 8. Integrasi Frontend Widget
 
-Cukup pasang 1 baris tag `<script>` pada layout aplikasi web Anda (misal `resources/views/app.blade.php` atau `index.html`):
+Sematkan widget pada layout web Anda:
 
 ```html
 <!-- Universal AI Chatbot Widget -->
@@ -216,13 +191,7 @@ Cukup pasang 1 baris tag `<script>` pada layout aplikasi web Anda (misal `resour
 </script>
 ```
 
-### Opsi Parameter Script:
-- `data-webhook`:
-  - Gunakan `/api/webhook/chat-entry` jika melalui proxy Laravel.
-  - Atau gunakan `http://localhost:5678/webhook/chat-entry` jika ingin langsung ke n8n.
-- `data-user-id`: ID pengguna yang sedang login (misal `user-123` atau `guest`). Digunakan untuk memisahkan memori percakapan.
-
-### Fitur Widget:
-- Format teks bot mendukung HTML styling (`<b>`, `<br>`, daftar poin).
-- Auto-scroll ke pesan terbaru.
-- Floating bubble button yang responsif di desktop maupun mobile.
+Widget secara otomatis:
+- Menampilkan badge privasi: `🛡️ Privasi Aman (Anti-PII)`.
+- Menyaring data sensitif sebelum dikirim ke jaringan.
+- Menampilkan tag intent yang terdeteksi secara elegan.

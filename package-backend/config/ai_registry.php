@@ -3,22 +3,25 @@
 return [
     /*
     |--------------------------------------------------------------------------
-    | Daftarkan Endpoint API / Capabilities yang Boleh Diakses AI di Proyek Ini
+    | Daftarkan Intent / Capabilities yang Boleh Diproses AI di Proyek Ini
     |--------------------------------------------------------------------------
-    | AI (Gemini) diorkestrasi oleh n8n secara otomatis membaca manifest ini
-    | via endpoint /api/v1/ai/manifest.
+    | AI Agent berfungsi murni sebagai INTENT PARSER dengan dukungan MEMORI.
+    | AI TIDAK memiliki akses langsung ke database atau data sensitif pribadi.
     |
-    | Setiap kali Anda menambahkan atau mengubah entri di sini, AI secara
-    | OTOMATIS langsung memahami kapabilitas baru tersebut tanpa perlu
-    | mengubah alur/workflow n8n sama sekali!
+    | Manifest ini dibaca secara otomatis via endpoint /api/v1/ai/manifest.
+    | AI menggunakan definisi aksi dan parameter ini untuk memetakan maksud (intent)
+    | pengguna serta mengekstrak parameter yang dibutuhkan.
+    |
+    | PERINGATAN PRIVASI:
+    | Jangan pernah menaruh data pribadi sensitif (KTP, No HP, password) di sini.
     |
     | Parameter struktur:
-    | - 'action'       : Nama unik kapabilitas (misal: get_monthly_revenue)
+    | - 'action'       : Nama unik intent/kapabilitas (misal: get_monthly_revenue)
     | - 'method'       : HTTP Method (GET / POST)
     | - 'path'         : Endpoint path (misal: /api/v1/store/revenue/monthly)
-    | - 'description'  : Deskripsi jelas apa data yang disediakan dan kapan digunakan
-    | - 'params'       : (Opsional) Parameter query atau path yang didukung
-    | - 'current_data'  : (Opsional) Data snapshot / statis jika ingin disuplai langsung
+    | - 'description'  : Penjelasan maksud intent dan kapan digunakan
+    | - 'params'       : Parameter/slot yang didukung untuk diekstrak (misal: month, year)
+    | - 'current_data' : (Opsional) Data snapshot agregat publik untuk fulfillment
     */
     'endpoints' => [
         [

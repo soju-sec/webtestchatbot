@@ -1,8 +1,23 @@
 # Universal AI Chatbot (n8n + Laravel + Vanilla JS)
 
-Arsitektur chatbot cerdas universal berbasis orkestrasi **n8n** dan **Google Gemini 2.5 Flash**, dirancang *plug-and-play* dan *Manifest-Driven* untuk proyek backend (Laravel/PHP) dan web frontend apa pun.
+Arsitektur chatbot cerdas universal berbasis orkestrasi **n8n** dan **Google Gemini 2.5 Flash**, dirancang *plug-and-play*, *Manifest-Driven*, dilengkapi **Anti-PII Privacy Shield** (pencegahan kebocoran data sensitif seperti KTP, No HP, dll) dan berfokus murni sebagai **Intent Parser** cerdas dengan dukungan **Multi-Turn Conversation Memory**.
 
-> 📖 **Panduan Lengkap & Tutorial Menambahkan API Baru**: Silakan baca [MANUAL_INTEGRASI.md](MANUAL_INTEGRASI.md).
+> 📖 **Panduan Lengkap Arsitektur & Keamanan**: Silakan baca [MANUAL_INTEGRASI.md](MANUAL_INTEGRASI.md).
+
+---
+
+## 🛡️ Fitur Keamanan & Arsitektur Utama
+
+1. **Anti-PII Privacy Shield (Data Masking)**:
+   - AI **TIDAK BISA** membaca atau menyimpan data pribadi sensitif pengguna.
+   - Nomor KTP / NIK (16 digit), Nomor HP (+62/08...), Email, Nomor Kartu Kredit, PIN, dan Password otomatis disamarkan (*redacted*) sebelum sampai ke model AI maupun memori percakapan.
+2. **Dedicated Intent & Entity Parser**:
+   - AI agent bertugas murni memetakan maksud pengguna (*intent recognition*) dan mengekstrak parameter non-sensitif (*slot extraction*).
+   - AI tidak mengakses langsung basis data mentah.
+3. **Multi-Turn Contextual Memory**:
+   - Memanfaatkan riwayat percakapan untuk memahami konteks lanjutan (misalnya: *"kalau bulan depannya lagi?"* atau klarifikasi pertanyaan).
+4. **Programmatic Safe Fulfillment**:
+   - Data bisnis diproses dan disajikan secara aman dan terprogram di level sistem backend/orkestrator.
 
 ---
 
@@ -12,13 +27,15 @@ Arsitektur chatbot cerdas universal berbasis orkestrasi **n8n** dan **Google Gem
 chatbot/
 ├── docker-compose.yml        # Konfigurasi container n8n orchestrator
 ├── .env.example              # Template variabel lingkungan
-├── MANUAL_INTEGRASI.md       # Panduan lengkap integrasi & pendaftaran capability
+├── MANUAL_INTEGRASI.md       # Panduan lengkap integrasi, Anti-PII & Intent Parser
 ├── README.md                 # Ringkasan cepat
 ├── n8n/
-│   └── universal-chatbot-workflow.json # Alur orkestrasi n8n (Gemini 2.5 Flash)
+│   └── universal-chatbot-workflow.json # Alur orkestrasi n8n (Anti-PII & Intent Parser)
 ├── package-backend/          # Salin folder ini ke proyek backend Laravel Anda
+│   ├── Services/
+│   │   └── PiiSanitizer.php  # Layanan sanitasi & masking data sensitif (KTP, HP, dll.)
 │   ├── config/
-│   │   └── ai_registry.php   # Tempat mendaftarkan capability/endpoint API proyek
+│   │   └── ai_registry.php   # Tempat mendaftarkan manifest intent/kapabilitas API
 │   ├── Controllers/
 │   │   ├── AiCapabilityController.php
 │   │   └── ConversationMemoryController.php
@@ -27,7 +44,7 @@ chatbot/
 │   └── migrations/
 │       └── create_conversation_messages_table.php
 └── package-frontend/         # Widget chat mandiri (bisa di-embed via 1 tag script)
-    ├── chat-widget.js        # Script widget (mendukung HTML tag & formatting)
+    ├── chat-widget.js        # Script widget (dengan client-side protection & intent badge)
     ├── chat-widget.css       # Style widget
     └── index.html            # Halaman demo integrasi
 ```
@@ -48,7 +65,7 @@ chatbot/
    ```bash
    docker compose up -d
    ```
-5. Import workflow:
+5. Import & aktifkan workflow:
    ```bash
    docker exec universal_chatbot_n8n n8n import:workflow --input=/backup/n8n/universal-chatbot-workflow.json
    docker exec universal_chatbot_n8n n8n publish:workflow --id=universal-chatbot
@@ -60,6 +77,7 @@ chatbot/
 ## 🛠️ 2. Integrasi Backend (Laravel/PHP)
 
 1. Salin file dari `package-backend/` ke project Laravel Anda:
+   - `Services/*` -> `app/Services/`
    - `config/ai_registry.php` -> `config/ai_registry.php`
    - `Controllers/*` -> `app/Http/Controllers/Api/`
    - `Middleware/*` -> `app/Http/Middleware/`
@@ -90,7 +108,7 @@ chatbot/
    ```
 
 > ⚠️ **Catatan Penting saat Menjalankan Native**:
-> Jika menjalankan via `php artisan serve`, gunakan perintah multi-worker untuk mencegah deadlock:
+> Jika menjalankan via `php artisan serve`, gunakan multi-worker untuk mencegah deadlock:
 > ```bash
 > PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=0.0.0.0 --port=8088 --no-reload
 > ```
@@ -113,12 +131,8 @@ Cukup tambahkan satu script tag di layout aplikasi web Anda (`app.blade.php` ata
 
 ## 💡 4. Menambahkan Data / API Baru untuk Chatbot
 
-Anda bisa mendaftarkan endpoint/kemampuan baru menggunakan script otomatis:
+Gunakan script otomatis untuk mendaftarkan endpoint/intent baru:
 ```bash
-./register-ai-capability.sh
+./register-ai-capability.sh --url="http://localhost:8088/api/v1/products"
 ```
-Atau via CLI flag satu baris:
-```bash
-./register-ai-capability.sh --action="get_products" --path="/api/v1/products" --desc="Daftar produk aktif"
-```
-Lihat panduan lengkap di **[MANUAL_INTEGRASI.md](MANUAL_INTEGRASI.md)** untuk petunjuk langkah demi langkah mendaftarkan endpoint atau metrik baru tanpa perlu menyentuh n8n.
+Lihat panduan lengkap di **[MANUAL_INTEGRASI.md](MANUAL_INTEGRASI.md)**.
