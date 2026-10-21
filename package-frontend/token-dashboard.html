@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Sisa & Pemakaian Token Gemini AI (Terpisah)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --glow-blue: rgba(59, 130, 246, 0.15);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg);
+      background-image: radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+                        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 30px 20px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .title-group h1 {
+      font-size: 24px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge-isolated {
+      font-size: 11px;
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Config Bar */
+    .config-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      align-items: center;
+      backdrop-filter: blur(8px);
+    }
+    .config-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .config-input {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      color: var(--text-main);
+      padding: 6px 10px;
+      font-size: 12px;
+      outline: none;
+      min-width: 200px;
+    }
+    .config-input:focus { border-color: var(--primary); }
+    .btn {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
+
+    /* Grid Stats */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      transition: transform 0.2s;
+    }
+    .card:hover { transform: translateY(-2px); }
+    .card-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-val {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .card-val.success { color: var(--success); }
+    .card-val.warning { color: var(--warning); }
+    .card-val.danger { color: var(--danger); }
+    .card-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Progress Quota Bar */
+    .progress-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(8px);
+    }
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .progress-track {
+      height: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #10b981);
+      border-radius: 6px;
+      transition: width 0.6s ease;
+      width: 0%;
+    }
+    .progress-fill.warning { background: linear-gradient(90deg, #3b82f6, #f59e0b); }
+    .progress-fill.danger { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+
+    /* Split Section: Calculator & Info */
+    .split-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 768px) {
+      .split-grid { grid-template-columns: 1fr; }
+    }
+
+    .calc-box textarea {
+      width: 100%;
+      height: 90px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      color: #fff;
+      padding: 10px;
+      font-family: inherit;
+      font-size: 13px;
+      resize: vertical;
+      outline: none;
+      margin-bottom: 10px;
+    }
+    .calc-box textarea:focus { border-color: var(--primary); }
+    .calc-result {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      font-size: 13px;
+      display: none;
+    }
+
+    /* History Table */
+    .table-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      overflow-x: auto;
+      backdrop-filter: blur(8px);
+    }
+    .table-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+    th {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--card-border);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+    }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pill-model { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .empty-state { text-align: center; padding: 30px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="title-group">
+        <h1>🪙 Gemini Token Monitor <span class="badge-isolated">🛡️ Terpisah & Terisolasi</span></h1>
+        <p class="subtitle">Pantau pemakaian token, sisa kuota bulanan, dan estimasi biaya tanpa membebani sistem produksi.</p>
+      </div>
+      <div>
+        <button id="btn-refresh" class="btn">🔄 Refresh Data</button>
+      </div>
+    </div>
+
+    <!-- Connection Bar -->
+    <div class="config-bar">
+      <div class="config-item">
+        <span>🌐 Backend Base URL:</span>
+        <input type="text" id="cfg-backend-url" class="config-input" value="http://127.0.0.1:8000" placeholder="http://127.0.0.1:8000">
+      </div>
+      <div class="config-item">
+        <span>🔑 Internal API Key:</span>
+        <input type="password" id="cfg-api-key" class="config-input" value="your_secure_internal_api_key_here" placeholder="X-Internal-API-Key">
+      </div>
+      <button id="btn-save-cfg" class="btn" style="background: rgba(255,255,255,0.1);">Simpan</button>
+    </div>
+
+    <!-- Top Stats Cards -->
+    <div class="stats-grid">
+      <!-- Sisa Token -->
+      <div class="card">
+        <div class="card-label">
+          <span>Estimasi Sisa Token</span>
+          <span id="badge-status" class="pill pill-model">Aman</span>
+        </div>
+        <div id="val-remaining" class="card-val success">Loading...</div>
+        <div id="sub-remaining" class="card-sub">dari batas kuota bulanan</div>
+      </div>
+
+      <!-- Terpakai Bulan Ini -->
+      <div class="card">
+        <div class="card-label">
+          <span>Terpakai Bulan Ini</span>
+          <span>📅 Bulanan</span>
+        </div>
+        <div id="val-used-month" class="card-val">0</div>
+        <div id="sub-used-month" class="card-sub">0% dari batas kuota</div>
+      </div>
+
+      <!-- Terpakai Hari Ini -->
+      <div class="card">
+        <div class="card-label">
+          <span>Terpakai Hari Ini</span>
+          <span>⚡ 24 Jam</span>
+        </div>
+        <div id="val-today" class="card-val">0</div>
+        <div id="sub-today" class="card-sub">0 requests hari ini</div>
+      </div>
+
+      <!-- Total Sepanjang Waktu -->
+      <div class="card">
+        <div class="card-label">
+          <span>Total All-Time</span>
+          <span>🌐 Kumulatif</span>
+        </div>
+        <div id="val-alltime" class="card-val">0</div>
+        <div id="sub-alltime" class="card-sub">Rata-rata 0 token/request</div>
+      </div>
+    </div>
+
+    <!-- Quota Progress Bar -->
+    <div class="progress-section">
+      <div class="progress-header">
+        <span>Kapasitas Kuota Bulanan</span>
+        <span id="label-percent">0% Terpakai</span>
+      </div>
+      <div class="progress-track">
+        <div id="progress-bar" class="progress-fill"></div>
+      </div>
+    </div>
+
+    <!-- 🔑 Gemini API Key Pool & Rotator Card -->
+    <div class="card" style="margin-bottom: 24px; border-left: 4px solid var(--primary);">
+      <div class="card-label">
+        <span style="display:flex; align-items:center; gap:8px;">🔑 Gemini API Key Pool & Rotasi Otomatis (Anti-Kehabisan Token)</span>
+        <span id="badge-key-count" class="pill pill-model">1 Key Aktif</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-top:8px;">
+        <div style="flex: 1; min-width: 250px;">
+          <div style="font-size:13px; color:var(--text-muted); margin-bottom:4px;">Strategi Rotasi & Penyeimbang Beban:</div>
+          <div id="val-key-strategy" style="font-size:15px; font-weight:600; color:var(--text-main);">Round-Robin Load Balancing + Auto-Failover (429)</div>
+          <div id="val-key-list" style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;"></div>
+        </div>
+        <div style="flex: 1; min-width: 250px; background:rgba(15,23,42,0.5); padding:12px; border-radius:8px; border:1px solid var(--card-border);">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">⚡ Kapasitas Gabungan Pool:</div>
+          <div style="font-size:13px; display:flex; flex-direction:column; gap:4px;">
+            <div>• Batas Kecepatan: <b id="val-combined-rpm">15 RPM</b></div>
+            <div>• Batas Harian: <b id="val-combined-rpd">1,500 Requests/Hari</b></div>
+            <div>• Throughput Token: <b id="val-combined-tpm">1,000,000 TPM</b></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px; font-size:12px; color:var(--text-muted); background:rgba(59,130,246,0.06); padding:8px 12px; border-radius:6px; border:1px dashed rgba(59,130,246,0.2);">
+        💡 <b>Tips Multi-Key:</b> Tambahkan beberapa API key di file <code>.env</code> dipisahkan koma: <code>GEMINI_API_KEYS=key1,key2,key3</code>. Setiap key baru akan otomatis melipatgandakan batas kuota dan requests!
+      </div>
+    </div>
+
+    <!-- Live Calculator & Model Limits -->
+    <div class="split-grid">
+      <!-- Live Calculator -->
+      <div class="card calc-box">
+        <div class="card-label">🧮 Live Token Estimator (Cek Pesan Baru)</div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+          Ketik kalimat/prompt untuk menghitung estimasi token yang akan terpakai sebelum dikirim ke Gemini.
+        </p>
+        <textarea id="calc-input" placeholder="Tulis atau tempel pesan contoh di sini..."></textarea>
+        <button id="btn-calc" class="btn">Hitung Estimasi Token</button>
+        <div id="calc-result" class="calc-result"></div>
+      </div>
+
+      <!-- Model Specifications -->
+      <div class="card">
+        <div class="card-label">ℹ️ Batasan Teknis Model AI (Gemini 2.5 Flash)</div>
+        <ul style="list-style: none; font-size: 13px; display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+          <li>📦 <b>Context Window:</b> 1,048,576 token per request</li>
+          <li>📤 <b>Max Output Tokens:</b> 8,192 token per respon</li>
+          <li>⚡ <b>Batas Kecepatan Free Tier:</b> 15 RPM (Requests Per Minute)</li>
+          <li>🎯 <b>Batas Token Free Tier:</b> 1,000,000 TPM (Tokens Per Minute)</li>
+          <li>🛡️ <b>Isolasi Database:</b> Tabel <code>chatbot_token_usages</code> terpisah, tidak menyentuh tabel bisnis produksi.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- History Table -->
+    <div class="table-section">
+      <div class="table-header">
+        <div style="font-size: 15px; font-weight: 600;">📜 Riwayat Transaksi Penggunaan Token Terkini</div>
+        <span id="history-total" style="font-size: 12px; color: var(--text-muted);">0 transaksi</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Waktu</th>
+            <th>Conversation ID</th>
+            <th>User ID</th>
+            <th>Model</th>
+            <th>Prompt (Input)</th>
+            <th>Output</th>
+            <th>Total Token</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody">
+          <tr>
+            <td colspan="7" class="empty-state">Memuat riwayat transaksi...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY_URL = 'chatbot_token_backend_url';
+    const STORAGE_KEY_KEY = 'chatbot_token_api_key';
+
+    const inputUrl = document.getElementById('cfg-backend-url');
+    const inputKey = document.getElementById('cfg-api-key');
+
+    // Load saved settings
+    if (localStorage.getItem(STORAGE_KEY_URL)) inputUrl.value = localStorage.getItem(STORAGE_KEY_URL);
+    if (localStorage.getItem(STORAGE_KEY_KEY)) inputKey.value = localStorage.getItem(STORAGE_KEY_KEY);
+
+    document.getElementById('btn-save-cfg').addEventListener('click', () => {
+      localStorage.setItem(STORAGE_KEY_URL, inputUrl.value.trim());
+      localStorage.setItem(STORAGE_KEY_KEY, inputKey.value.trim());
+      loadData();
+    });
+
+    document.getElementById('btn-refresh').addEventListener('click', loadData);
+
+    async function loadData() {
+      const baseUrl = inputUrl.value.trim().replace(/\/+$/, '');
+      const apiKey = inputKey.value.trim();
+
+      try {
+        const res = await fetch(`${baseUrl}/api/v1/ai/tokens/summary`, {
+          headers: {
+            'X-Internal-API-Key': apiKey,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderSummary(data);
+      } catch (err) {
+        console.warn('Gagal memuat ringkasan token:', err);
+        document.getElementById('val-remaining').innerText = 'Offline';
+        document.getElementById('val-remaining').className = 'card-val warning';
+        document.getElementById('sub-remaining').innerText = 'Periksa URL Backend & Internal API Key';
+      }
+
+      // Load History
+      try {
+        const resHistory = await fetch(`${baseUrl}/api/v1/ai/tokens/history?limit=15`, {
+          headers: {
+            'X-Internal-API-Key': apiKey,
+            'Accept': 'application/json'
+          }
+        });
+        if (resHistory.ok) {
+          const histData = await resHistory.json();
+          renderHistory(histData.data || {});
+        }
+      } catch (err) {
+        console.warn('Gagal memuat riwayat:', err);
+      }
+    }
+
+    function renderSummary(data) {
+      const q = data.quota || {};
+      const u = data.usage || {};
+
+      // Sisa Token
+      const remVal = document.getElementById('val-remaining');
+      const remSub = document.getElementById('sub-remaining');
+      const badge = document.getElementById('badge-status');
+
+      if (q.remaining_tokens !== null) {
+        remVal.innerText = Number(q.remaining_tokens).toLocaleString();
+        remSub.innerText = `dari batas kuota ${Number(q.monthly_limit).toLocaleString()} token`;
+      } else {
+        remVal.innerText = 'Unlimited';
+        remSub.innerText = 'Batas kuota tidak dibatasi (0)';
+      }
+
+      badge.innerText = q.status_label || 'Aman';
+      remVal.className = 'card-val ' + (q.status === 'exceeded' ? 'danger' : (q.status === 'warning' ? 'warning' : 'success'));
+
+      // Terpakai Bulan Ini
+      document.getElementById('val-used-month').innerText = Number(q.used_this_month || 0).toLocaleString();
+      document.getElementById('sub-used-month').innerText = `${q.used_percentage || 0}% terpakai`;
+
+      // Terpakai Hari Ini
+      const today = u.today || {};
+      document.getElementById('val-today').innerText = Number(today.total || 0).toLocaleString();
+      document.getElementById('sub-today').innerText = `${Number(today.requests || 0)} requests hari ini`;
+
+      // All Time
+      const allTime = u.all_time || {};
+      document.getElementById('val-alltime').innerText = Number(allTime.total || 0).toLocaleString();
+      document.getElementById('sub-alltime').innerText = `Rata-rata ${u.avg_tokens_per_request || 0} token/request`;
+
+      // Progress Bar
+      const pBar = document.getElementById('progress-bar');
+      const pLabel = document.getElementById('label-percent');
+      const pct = Math.min(100, q.used_percentage || 0);
+      pBar.style.width = pct + '%';
+      pLabel.innerText = `${pct}% Terpakai (${Number(q.used_this_month || 0).toLocaleString()} / ${Number(q.monthly_limit || 0).toLocaleString()})`;
+      pBar.className = 'progress-fill ' + (q.status === 'exceeded' ? 'danger' : (q.status === 'warning' ? 'warning' : ''));
+
+      // 🔑 Key Pool & Rotator Data
+      const kp = data.key_pool || {};
+      const totalKeys = kp.total_keys || 1;
+      document.getElementById('badge-key-count').innerText = `${totalKeys} Key Aktif`;
+      document.getElementById('val-key-strategy').innerText = kp.rotation_strategy || 'Single Key Mode';
+
+      const keyListDiv = document.getElementById('val-key-list');
+      if (Array.isArray(kp.keys) && kp.keys.length > 0) {
+        keyListDiv.innerHTML = kp.keys.map(k => `
+          <span style="font-size:11px; font-family:monospace; background:rgba(255,255,255,0.08); padding:3px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">
+            🔑 ${k.masked}
+          </span>
+        `).join('');
+      } else {
+        keyListDiv.innerHTML = '<span style="font-size:12px; color:var(--text-muted);">Default API Key</span>';
+      }
+
+      const limits = data.model_limits || {};
+      document.getElementById('val-combined-rpm').innerText = limits.combined_rpm || '15 RPM';
+      document.getElementById('val-combined-rpd').innerText = limits.combined_rpd || '1,500 RPD';
+      document.getElementById('val-combined-tpm').innerText = limits.combined_tpm || '1,000,000 TPM';
+    }
+
+    function renderHistory(hist) {
+      const tbody = document.getElementById('history-tbody');
+      const items = hist.data || [];
+      document.getElementById('history-total').innerText = `${hist.total || items.length} transaksi tercatat`;
+
+      if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Belum ada riwayat transaksi token. Chatbot siap digunakan!</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = items.map(item => `
+        <tr>
+          <td><small>${item.created_at ? new Date(item.created_at).toLocaleTimeString() : '-'}</small></td>
+          <td><code>${item.conversation_id || '-'}</code></td>
+          <td>${item.user_id || 'guest'}</td>
+          <td><span class="pill pill-model">${item.model || 'gemini-2.5-flash'}</span></td>
+          <td>${Number(item.prompt_tokens || 0).toLocaleString()}</td>
+          <td>${Number(item.completion_tokens || 0).toLocaleString()}</td>
+          <td><b>${Number(item.total_tokens || 0).toLocaleString()}</b></td>
+        </tr>
+      `).join('');
+    }
+
+    // Live Token Estimator
+    document.getElementById('btn-calc').addEventListener('click', async () => {
+      const text = document.getElementById('calc-input').value.trim();
+      const resDiv = document.getElementById('calc-result');
+      if (!text) {
+        resDiv.style.display = 'none';
+        return;
+      }
+
+      const baseUrl = inputUrl.value.trim().replace(/\/+$/, '');
+      const apiKey = inputKey.value.trim();
+
+      resDiv.style.display = 'block';
+      resDiv.innerText = 'Menghitung estimasi token...';
+
+      try {
+        const res = await fetch(`${baseUrl}/api/v1/ai/tokens/count`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-API-Key': apiKey,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ text })
+        });
+
+        const data = await res.json();
+        resDiv.innerHTML = `
+          🪙 <b>Estimasi Token: ${data.total_tokens} token</b><br>
+          <small>Panjang Karakter: ${data.char_count} | Metode: ${data.method === 'gemini_api_live' ? 'Gemini API Live' : 'Heuristik Cepat'}</small>
+        `;
+      } catch (err) {
+        // Fallback hitung lokal
+        const estTokens = Math.max(1, Math.ceil(text.length / 3.5));
+        resDiv.innerHTML = `🪙 <b>Estimasi Lokal: ~${estTokens} token</b> (${text.length} karakter)`;
+      }
+    });
+
+    // Auto-load on open
+    window.addEventListener('DOMContentLoaded', loadData);
+  </script>
+</body>
+</html>

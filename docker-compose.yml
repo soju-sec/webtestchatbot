@@ -3,16 +3,21 @@ services:
     image: docker.n8n.io/n8nio/n8n:latest
     container_name: universal_chatbot_n8n
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    extra_hosts:
+      # Memungkinkan container n8n menghubungi backend Laravel yang berjalan secara native di host
+      - "host.docker.internal:host-gateway"
     environment:
-      - N8N_HOST=localhost
+      - N8N_HOST=${N8N_HOST:-localhost}
       - N8N_PORT=5678
-      - N8N_PROTOCOL=http
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
       - NODE_ENV=production
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
-      - WEBHOOK_URL=http://localhost:5678/
-      - GENERIC_TIMEZONE=Asia/Jakarta
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Asia/Jakarta}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_KEYS=${GEMINI_API_KEYS}
       - BACKEND_BASE_URL=${BACKEND_BASE_URL}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
     volumes:

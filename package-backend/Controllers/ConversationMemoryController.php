@@ -3,12 +3,48 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\ChatbotTokenService;
 use App\Services\PiiSanitizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ConversationMemoryController extends Controller
 {
+    /**
+     * Mendapatkan nama koneksi database terisolasi.
+     * Mengutamakan DB_CHATBOT_CONNECTION agar tidak mengganggu database produksi.
+     */
+    protected function getConnection(): ?string
+    {
+        return config('chatbot.database_connection', env('DB_CHATBOT_CONNECTION', null));
+    }
+
+    /**
+     * Mendapatkan nama tabel pesan percakapan terisolasi.
+     * Mendukung fallback backward-compatibility jika tabel lama 'conversation_messages' sudah ada.
+     */
+    protected function getTableName(): string
+    {
+        $connection = self::getConnection();
+        $preferredTable = config('chatbot.tables.messages', env('CHATBOT_TABLE_MESSAGES', 'chatbot_conversation_messages'));
+
+        try {
+            $schema = DB::connection($connection)->getSchemaBuilder();
+            if ($schema->hasTable($preferredTable)) {
+                return $preferredTable;
+            }
+            // Backward-compatibility jika tabel lama sudah ada
+            if ($schema->hasTable('conversation_messages')) {
+                return 'conversation_messages';
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[ConversationMemoryController] Gagal cek schema tabel: ' . $e->getMessage());
+        }
+
+        return $preferredTable;
+    }
+
     /**
      * Mengambil riwayat pesan percakapan untuk memori multi-turn AI.
      * Semua pesan dipastikan telah disaring dari data sensitif (PII) seperti KTP, No HP, dll.
@@ -16,28 +52,38 @@ class ConversationMemoryController extends Controller
     public function getMessages(Request $request, string $conversationId)
     {
         $limit = min((int) $request->query('limit', 12), 30);
-        $messages = DB::table('conversation_messages')
-            ->where('conversation_id', $conversationId)
-            ->orderBy('id', 'desc')
-            ->limit($limit)
-            ->get(['role', 'message', 'metadata', 'created_at'])
-            ->reverse()
-            ->values();
+        $connection = $this->getConnection();
+        $table = $this->getTableName();
 
-        // Pastikan tidak ada data sensitif (PII) yang dikirimkan ke konteks AI
-        $messages = $messages->map(function ($msg) {
-            $msg->message = class_exists(PiiSanitizer::class)
-                ? PiiSanitizer::sanitize($msg->message)
-                : self::fallbackSanitize($msg->message);
-            return $msg;
-        });
+        try {
+            $messages = DB::connection($connection)->table($table)
+                ->where('conversation_id', $conversationId)
+                ->orderBy('id', 'desc')
+                ->limit($limit)
+                ->get(['role', 'message', 'metadata', 'created_at'])
+                ->reverse()
+                ->values();
 
-        return response()->json(['messages' => $messages]);
+            // Pastikan tidak ada data sensitif (PII) yang dikirimkan ke konteks AI
+            $messages = $messages->map(function ($msg) {
+                $msg->message = class_exists(PiiSanitizer::class)
+                    ? PiiSanitizer::sanitize($msg->message)
+                    : self::fallbackSanitize($msg->message);
+                return $msg;
+            });
+
+            return response()->json(['messages' => $messages]);
+        } catch (\Throwable $e) {
+            Log::warning('[ConversationMemoryController] Gagal mengambil riwayat pesan: ' . $e->getMessage());
+            // Fail-safe: Kembalikan array kosong agar chat tetap dapat berjalan tanpa memori jika DB offline
+            return response()->json(['messages' => []]);
+        }
     }
 
     /**
      * Menyimpan pesan percakapan ke database memori.
      * Pesan disaring secara otomatis sehingga data sensitif (KTP, No HP) tidak disimpan secara mentah.
+     * Sekaligus mencatat pemakaian token AI jika tersedia di metadata secara terpisah.
      */
     public function storeMessage(Request $request, string $conversationId)
     {
@@ -63,19 +109,46 @@ class ConversationMemoryController extends Controller
             $metadata['pii_sanitized'] = true;
         }
 
-        $id = DB::table('conversation_messages')->insertGetId([
-            'conversation_id' => $conversationId,
-            'user_id'         => $data['user_id'],
-            'role'            => $data['role'],
-            'message'         => $cleanMessage,
-            'channel'         => $data['channel'] ?? 'web',
-            'metadata'        => !empty($metadata) ? json_encode($metadata) : null,
-            'created_at'      => now(),
-        ]);
+        $connection = $this->getConnection();
+        $table = $this->getTableName();
+
+        // 1. Simpan pesan percakapan
+        $id = null;
+        try {
+            $id = DB::connection($connection)->table($table)->insertGetId([
+                'conversation_id' => $conversationId,
+                'user_id'         => $data['user_id'],
+                'role'            => $data['role'],
+                'message'         => $cleanMessage,
+                'channel'         => $data['channel'] ?? 'web',
+                'metadata'        => !empty($metadata) ? json_encode($metadata) : null,
+                'created_at'      => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[ConversationMemoryController] Gagal menyimpan pesan ke database: ' . $e->getMessage());
+        }
+
+        // 2. Tracking token secara terpisah & aman (jika role assistant dan ada data token)
+        if ($data['role'] === 'assistant' && !empty($metadata['tokens'])) {
+            try {
+                $tokenData = $metadata['tokens'];
+                if (is_array($tokenData)) {
+                    $tokenData['conversation_id'] = $conversationId;
+                    $tokenData['user_id'] = $data['user_id'];
+                    $tokenData['channel'] = $data['channel'] ?? 'web';
+                    if (class_exists(ChatbotTokenService::class)) {
+                        ChatbotTokenService::recordUsage($tokenData);
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Tracking token tidak boleh menggagalkan respon chat
+                Log::warning('[ConversationMemoryController] Gagal merekam token: ' . $e->getMessage());
+            }
+        }
 
         return response()->json([
-            'status' => 'success',
-            'id' => $id,
+            'status'        => 'success',
+            'id'            => $id,
             'pii_sanitized' => $hasPii,
         ], 201);
     }

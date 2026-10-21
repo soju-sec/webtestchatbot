@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chatbot Widget Demo</title>
+  <title>Chatbot Widget Demo & Token Monitor</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -41,6 +41,12 @@
       font-size: 13px;
       overflow-x: auto;
     }
+    .badge-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
     .badge {
       display: inline-block;
       padding: 4px 8px;
@@ -49,21 +55,33 @@
       border-radius: 6px;
       font-size: 12px;
       font-weight: 600;
-      margin-bottom: 12px;
+    }
+    .badge-token {
+      background: #fef3c7;
+      color: #92400e;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .badge-token:hover {
+      background: #fde68a;
     }
   </style>
 </head>
 <body>
   <div class="demo-container">
-    <div class="badge">Universal Chatbot Widget</div>
+    <div class="badge-bar">
+      <div class="badge">Universal Chatbot Widget</div>
+      <a href="token-dashboard.html" class="badge badge-token" target="_blank">🪙 Buka Token Dashboard (Terpisah) ↗</a>
+    </div>
     <h1>Demo Integrasi Frontend</h1>
     <p>Halaman ini mendemonstrasikan widget percakapan AI mandiri. Cukup sematkan script berikut pada aplikasi web Anda:</p>
     <div class="code-box">&lt;script 
   src="/path-to/chat-widget.js" 
-  data-webhook="http://localhost:5678/webhook/chat-entry" 
+  data-webhook="/api/webhook/chat-entry" 
   data-user-id="USER-123"&gt;
 &lt;/script&gt;</div>
     <p>Klik tombol bubble biru di pojok kanan bawah untuk memulai percakapan.</p>
+    <p><small style="color: #94a3b8;">Catatan: Widget chat publik ini tidak memuat token dashboard, sehingga kuota dan token analytics tetap terpisah dan aman khusus untuk admin.</small></p>
   </div>
 
   <!-- Embed widget langsung -->

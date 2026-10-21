@@ -1,23 +1,33 @@
 # Universal AI Chatbot (n8n + Laravel + Vanilla JS)
 
-Arsitektur chatbot cerdas universal berbasis orkestrasi **n8n** dan **Google Gemini 2.5 Flash**, dirancang *plug-and-play*, *Manifest-Driven*, dilengkapi **Anti-PII Privacy Shield** (pencegahan kebocoran data sensitif seperti KTP, No HP, dll) dan berfokus murni sebagai **Intent Parser** cerdas dengan dukungan **Multi-Turn Conversation Memory**.
+Arsitektur chatbot cerdas universal berbasis orkestrasi **n8n** dan **Google Gemini 2.5 Flash**, dirancang *plug-and-play*, *Manifest-Driven*, dilengkapi **Anti-PII Privacy Shield** (pencegahan kebocoran data sensitif seperti KTP, No HP, dll), **Isolasi Database Total (Zero Disruption)**, **Pemantauan Sisa & Pemakaian Token Terpisah**, serta bertindak murni sebagai **Intent Parser** cerdas dengan dukungan **Multi-Turn Conversation Memory**.
 
 > 📖 **Panduan Lengkap Arsitektur & Keamanan**: Silakan baca [MANUAL_INTEGRASI.md](MANUAL_INTEGRASI.md).
 
 ---
 
-## 🛡️ Fitur Keamanan & Arsitektur Utama
+## 🛡️ Fitur Keamanan, Stabilitas & Arsitektur Utama
 
-1. **Anti-PII Privacy Shield (Data Masking)**:
+1. **Anti-PII Privacy Shield (Data Masking Otomatis)**:
    - AI **TIDAK BISA** membaca atau menyimpan data pribadi sensitif pengguna.
    - Nomor KTP / NIK (16 digit), Nomor HP (+62/08...), Email, Nomor Kartu Kredit, PIN, dan Password otomatis disamarkan (*redacted*) sebelum sampai ke model AI maupun memori percakapan.
-2. **Dedicated Intent & Entity Parser**:
+2. **Zero-Disruption Database Production (Isolasi Total)**:
+   - Mendukung koneksi database mandiri (misal: `DB_CHATBOT_CONNECTION=chatbot_sqlite` atau `sqlite`) sehingga database MySQL/Postgres utama production **100% tidak tersentuh**.
+   - Jika memakai database yang sama, seluruh tabel menggunakan prefix `chatbot_` tanpa foreign key ke tabel bisnis, menjamin zero table locks / cascades.
+3. **Fitur Cek Sisa Token & Pemakaian Terpisah (Isolated Token Monitor)**:
+   - Pantau total token terpakai (hari ini, bulan ini, all-time) dan estimasi sisa token bulanan.
+   - Tersedia via **Web Dashboard** (`package-frontend/token-dashboard.html`), **CLI Terminal** (`./check-tokens.sh`), dan **Artisan Command** (`php artisan chatbot:tokens`).
+   - Lengkap dengan **Live Token Calculator** untuk menguji estimasi token sebelum prompt dikirim.
+4. **Gemini API Key Pool & Rotasi Otomatis (Anti-Kehabisan Kuota)**:
+   - Mendukung multi-key di `.env` (`GEMINI_API_KEYS=key1,key2,key3`).
+   - Fitur **Round-Robin Load Balancing** membagi beban request secara proporsional.
+   - Fitur **Auto-Failover** otomatis mengalihkan request ke key cadangan jika ada key yang terkena *Rate Limit (429)* atau kehabisan kuota harian.
+5. **Kompatibel Docker & Native**:
+   - Mendukung lingkungan di mana aplikasi host berjalan secara Native (Nginx/Artisan) maupun Dockerized (Docker Compose), dengan fail-safe proxy (Circuit Breaker).
+6. **Dedicated Intent & Entity Parser**:
    - AI agent bertugas murni memetakan maksud pengguna (*intent recognition*) dan mengekstrak parameter non-sensitif (*slot extraction*).
-   - AI tidak mengakses langsung basis data mentah.
-3. **Multi-Turn Contextual Memory**:
+7. **Multi-Turn Contextual Memory**:
    - Memanfaatkan riwayat percakapan untuk memahami konteks lanjutan (misalnya: *"kalau bulan depannya lagi?"* atau klarifikasi pertanyaan).
-4. **Programmatic Safe Fulfillment**:
-   - Data bisnis diproses dan disajikan secara aman dan terprogram di level sistem backend/orkestrator.
 
 ---
 
@@ -25,28 +35,40 @@ Arsitektur chatbot cerdas universal berbasis orkestrasi **n8n** dan **Google Gem
 
 ```plaintext
 chatbot/
-├── docker-compose.yml        # Konfigurasi container n8n orchestrator
-├── .env.example              # Template variabel lingkungan
-├── MANUAL_INTEGRASI.md       # Panduan lengkap integrasi, Anti-PII & Intent Parser
+├── docker-compose.yml        # Konfigurasi container n8n orchestrator (mendukung Docker & Host Native)
+├── .env.example              # Template variabel lingkungan (termasuk kuota token & koneksi DB)
+├── MANUAL_INTEGRASI.md       # Panduan lengkap integrasi, isolasi DB, Anti-PII & Token Tracking
 ├── README.md                 # Ringkasan cepat
+├── check-tokens.sh           # Script cepat cek sisa token dari terminal
+├── install.sh                # Script setup & validasi instalasi
 ├── n8n/
-│   └── universal-chatbot-workflow.json # Alur orkestrasi n8n (Anti-PII & Intent Parser)
+│   └── universal-chatbot-workflow.json # Alur orkestrasi n8n (Anti-PII, Intent Parser & Token Recorder)
 ├── package-backend/          # Salin folder ini ke proyek backend Laravel Anda
+│   ├── Commands/
+│   │   └── ChatbotTokenCommand.php # Perintah Artisan php artisan chatbot:tokens
 │   ├── Services/
-│   │   └── PiiSanitizer.php  # Layanan sanitasi & masking data sensitif (KTP, HP, dll.)
+│   │   ├── ChatbotTokenService.php # Layanan tracking, kuota & live count token
+│   │   └── PiiSanitizer.php        # Layanan sanitasi data sensitif (KTP, HP, dll.)
 │   ├── config/
-│   │   └── ai_registry.php   # Tempat mendaftarkan manifest intent/kapabilitas API
+│   │   ├── chatbot.php             # Konfigurasi isolasi database & batas kuota token
+│   │   └── ai_registry.php         # Tempat mendaftarkan manifest intent/kapabilitas API
 │   ├── Controllers/
 │   │   ├── AiCapabilityController.php
-│   │   └── ConversationMemoryController.php
+│   │   ├── ConversationMemoryController.php
+│   │   └── TokenUsageController.php # Controller terpisah untuk cek sisa token
 │   ├── Middleware/
 │   │   └── VerifyInternalApiKey.php
-│   └── migrations/
-│       └── create_conversation_messages_table.php
-└── package-frontend/         # Widget chat mandiri (bisa di-embed via 1 tag script)
-    ├── chat-widget.js        # Script widget (dengan client-side protection & intent badge)
-    ├── chat-widget.css       # Style widget
-    └── index.html            # Halaman demo integrasi
+│   ├── migrations/
+│   │   └── 2025_01_01_000001_create_chatbot_tables.php # Migrasi tabel terisolasi
+│   ├── routes/
+│   │   └── chatbot.php             # Route terisolasi (cukup 1 baris include di routes/api.php)
+│   └── bin/
+│       └── check-tokens.sh         # Script bash mandiri pengecekan token
+└── package-frontend/         # Widget chat & dashboard token terpisah
+    ├── chat-widget.js        # Script widget publik (Anti-PII & intent tag)
+    ├── chat-widget.css       # Style widget publik
+    ├── index.html            # Halaman demo integrasi chat
+    └── token-dashboard.html  # Dashboard pemantauan sisa & pemakaian token (khusus admin/terpisah)
 ```
 
 ---
@@ -60,7 +82,7 @@ chatbot/
    cp .env.example .env
    ```
 2. Isi `GEMINI_API_KEY` (dapatkan gratis di [Google AI Studio](https://aistudio.google.com/)).
-3. Tentukan `BACKEND_BASE_URL` (contoh: `http://127.0.0.1:8088` untuk Linux host, atau `http://host.docker.internal:8000`).
+3. Tentukan `BACKEND_BASE_URL` (contoh: `http://host.docker.internal:8000` jika Laravel berjalan native di host, atau nama service container jika Dockerized).
 4. Jalankan container n8n:
    ```bash
    docker compose up -d
@@ -74,48 +96,52 @@ chatbot/
 
 ---
 
-## 🛠️ 2. Integrasi Backend (Laravel/PHP)
+## 🛠️ 2. Integrasi Backend (Laravel/PHP) - Bebas Gangguan
 
 1. Salin file dari `package-backend/` ke project Laravel Anda:
+   - `Commands/*` -> `app/Console/Commands/`
    - `Services/*` -> `app/Services/`
-   - `config/ai_registry.php` -> `config/ai_registry.php`
+   - `config/*` -> `config/`
    - `Controllers/*` -> `app/Http/Controllers/Api/`
    - `Middleware/*` -> `app/Http/Middleware/`
    - `migrations/*` -> `database/migrations/`
-2. Jalankan migrasi:
+   - `routes/chatbot.php` -> `routes/chatbot.php`
+2. **Isolasi Database (Opsional & Direkomendasikan)**:
+   Jika ingin memisahkan database chat dari database transaksi bisnis, set di `.env`:
+   ```env
+   DB_CHATBOT_CONNECTION=sqlite
+   ```
+3. Jalankan migrasi:
    ```bash
    php artisan migrate
    ```
-3. Daftarkan route di `routes/api.php`:
+4. Di file `routes/api.php`, cukup sertakan 1 baris berikut:
    ```php
-   use App\Http\Controllers\Api\AiCapabilityController;
-   use App\Http\Controllers\Api\ConversationMemoryController;
-   use App\Http\Middleware\VerifyInternalApiKey;
-
-   // Proxy route untuk menghindari CORS dari widget ke n8n
-   Route::post('/webhook/chat-entry', function (Request $request) {
-       $n8nUrl = env('N8N_WEBHOOK_URL', 'http://127.0.0.1:5678/webhook/chat-entry');
-       $response = \Illuminate\Support\Facades\Http::timeout(60)->post($n8nUrl, $request->all());
-       return response()->json($response->json(), $response->status());
-   });
-
-   // Endpoint internal untuk n8n
-   Route::middleware([VerifyInternalApiKey::class])->prefix('v1')->group(function () {
-       Route::get('/ai/manifest', [AiCapabilityController::class, 'manifest']);
-       Route::get('/conversations/{conversationId}/messages', [ConversationMemoryController::class, 'getMessages']);
-       Route::post('/conversations/{conversationId}/messages', [ConversationMemoryController::class, 'storeMessage']);
-   });
+   require __DIR__ . '/chatbot.php';
    ```
-
-> ⚠️ **Catatan Penting saat Menjalankan Native**:
-> Jika menjalankan via `php artisan serve`, gunakan multi-worker untuk mencegah deadlock:
-> ```bash
-> PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=0.0.0.0 --port=8088 --no-reload
-> ```
 
 ---
 
-## 💻 3. Integrasi Frontend Widget
+## 🪙 3. Memeriksa Sisa Token & Pemakaian (Terpisah)
+
+Pilih metode yang paling nyaman bagi Anda:
+
+### Opsi A: Via Terminal (Bash)
+```bash
+./check-tokens.sh
+```
+
+### Opsi B: Via Artisan Command
+```bash
+php artisan chatbot:tokens --history
+```
+
+### Opsi C: Via Web Dashboard (Admin UI)
+Buka file `package-frontend/token-dashboard.html` di browser Anda untuk melihat gauge sisa kuota, grafik pemakaian, dan live token counter.
+
+---
+
+## 💻 4. Integrasi Frontend Widget
 
 Cukup tambahkan satu script tag di layout aplikasi web Anda (`app.blade.php` atau `index.html`):
 
@@ -129,7 +155,7 @@ Cukup tambahkan satu script tag di layout aplikasi web Anda (`app.blade.php` ata
 
 ---
 
-## 💡 4. Menambahkan Data / API Baru untuk Chatbot
+## 💡 5. Menambahkan Data / API Baru untuk Chatbot
 
 Gunakan script otomatis untuk mendaftarkan endpoint/intent baru:
 ```bash
