@@ -233,3 +233,245 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Header Action Buttons */
+.ai-header-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-header-action-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-header-action-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Quick Action Chips */
+.ai-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ai-chip-btn {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ai-chip-btn:hover {
+  background: #dbeafe;
+  transform: translateY(-1px);
+}
+
+.ai-chip-btn.ai-chip-issue {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.ai-chip-btn.ai-chip-issue:hover {
+  background: #fee2e2;
+}
+
+/* Ticket Card */
+.ai-ticket-card {
+  background: #fff5f5;
+  border: 1.5px solid #fca5a5;
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+
+.ai-ticket-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #fed7aa;
+  padding-bottom: 4px;
+}
+
+.ai-ticket-num {
+  font-weight: 800;
+  color: #991b1b;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+.ai-ticket-tag-open {
+  background: #dc2626;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ai-ticket-meta {
+  margin-bottom: 6px;
+  line-height: 1.4;
+  color: #334155;
+}
+
+.ai-ticket-alert-box {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  color: #065f46;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.ai-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: ai-pulse 1.5s infinite;
+  flex-shrink: 0;
+}
+
+@keyframes ai-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.3); }
+}
+
+.ai-ticket-copy-btn {
+  background: #fee2e2;
+  border: 1px solid #f87171;
+  color: #991b1b;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ai-ticket-copy-btn:hover {
+  background: #fecaca;
+}
+
+/* Issue Reporting Drawer */
+#ai-issue-drawer {
+  display: none;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 12px 14px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+  animation: ai-fade-in 0.2s ease;
+}
+
+.ai-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  color: #0f172a;
+}
+
+#ai-drawer-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.ai-drawer-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+  margin-top: 6px;
+  margin-bottom: 3px;
+  display: block;
+}
+
+.ai-drawer-input,
+.ai-drawer-textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.ai-drawer-input:focus,
+.ai-drawer-textarea:focus {
+  border-color: #2563eb;
+}
+
+.ai-drawer-notice {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #1e40af;
+  margin-top: 8px;
+}
+
+.ai-drawer-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ai-drawer-submit-btn {
+  flex: 1;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ai-drawer-submit-btn:hover {
+  background: #b91c1c;
+}
+
+.ai-drawer-cancel-btn {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+

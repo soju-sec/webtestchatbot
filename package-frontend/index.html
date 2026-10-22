@@ -70,25 +70,39 @@
 <body>
   <div class="demo-container">
     <div class="badge-bar">
-      <div class="badge">Universal Chatbot Widget</div>
+      <div class="badge">Universal Chatbot Widget v2.0</div>
+      <span class="badge" style="background:#fee2e2; color:#991b1b;">🚨 Tiket Telegram/WA Aktif</span>
       <a href="token-dashboard.html" class="badge badge-token" target="_blank">🪙 Buka Token Dashboard (Terpisah) ↗</a>
     </div>
     <h1>Demo Integrasi Frontend</h1>
-    <p>Halaman ini mendemonstrasikan widget percakapan AI mandiri. Cukup sematkan script berikut pada aplikasi web Anda:</p>
+    <p>Halaman ini mendemonstrasikan widget percakapan AI mandiri dengan sapaan awal personal dan sistem tiket kendala otomatis.</p>
+    
+    <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 12px 16px; margin-bottom: 20px; border-radius: 4px;">
+      <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #1e3a8a;">✨ 2 Fitur Baru yang Diaktifkan:</h3>
+      <ul style="margin: 0; padding-left: 20px; color: #334155; font-size: 13.5px; line-height: 1.6;">
+        <li><b>👋 Sapaan Awal Personal:</b> Saat chat dibuka, bot otomatis menyapa dengan nama user (misal <i>"Halo Budi Pratama! Ada yang bisa kami bantu?"</i>) dan menampilkan shortcut tombol cepat.</li>
+        <li><b>🚨 Laporan Masalah Pelanggan & Tiket Internal:</b> Jika pelanggan melaporkan kendala (seperti fitur yang tidak dapat diakses atau error), AI otomatis membuat <b>Tiket Gangguan Resmi (#TCK-...)</b> dan orkestrator n8n mengirimkan alert instan ke <b>Tim Internal via Telegram / WhatsApp</b>!</li>
+      </ul>
+    </div>
+
+    <p>Sematkan script berikut pada aplikasi web Anda:</p>
     <div class="code-box">&lt;script 
   src="/path-to/chat-widget.js" 
-  data-webhook="/api/webhook/chat-entry" 
-  data-user-id="USER-123"&gt;
+  data-webhook="http://localhost:5678/webhook/chat-entry" 
+  data-user-id="USER-123"
+  data-user-name="Budi Pratama"
+  data-bot-name="Asisten Virtual"&gt;
 &lt;/script&gt;</div>
-    <p>Klik tombol bubble biru di pojok kanan bawah untuk memulai percakapan.</p>
-    <p><small style="color: #94a3b8;">Catatan: Widget chat publik ini tidak memuat token dashboard, sehingga kuota dan token analytics tetap terpisah dan aman khusus untuk admin.</small></p>
+    <p>Klik tombol bubble biru 💬 di pojok kanan bawah untuk menguji sapaan dan coba ketik: <i>"Min, fitur transaksi tidak bisa diakses"</i> atau klik tombol <b>🚨 Lapor Kendala Fitur</b>.</p>
   </div>
 
-  <!-- Embed widget langsung -->
+  <!-- Embed widget langsung dengan data-user-name -->
   <script 
     src="./chat-widget.js" 
     data-webhook="http://localhost:5678/webhook/chat-entry" 
-    data-user-id="DEMO-USER-001">
+    data-user-id="DEMO-USER-001"
+    data-user-name="Budi Pratama"
+    data-bot-name="Asisten Virtual">
   </script>
 </body>
 </html>

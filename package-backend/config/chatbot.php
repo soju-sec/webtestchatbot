@@ -26,7 +26,30 @@ return [
     'tables' => [
         'messages' => env('CHATBOT_TABLE_MESSAGES', 'chatbot_conversation_messages'),
         'tokens'   => env('CHATBOT_TABLE_TOKENS', 'chatbot_token_usages'),
+        'tickets'  => env('CHATBOT_TABLE_TICKETS', 'chatbot_tickets'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notifikasi Tiket Gangguan Pelanggan (Telegram & WhatsApp)
+    |--------------------------------------------------------------------------
+    | Otomatis mengirimkan alert langsung ke tim internal saat ada pelanggan
+    | yang melaporkan fitur tidak dapat diakses, bug sistem, atau keluhan.
+    */
+    'notifications' => [
+        'telegram' => [
+            'enabled'   => (bool) env('TELEGRAM_NOTIFICATIONS_ENABLED', true),
+            'bot_token' => env('TELEGRAM_BOT_TOKEN', ''),
+            'chat_id'   => env('TELEGRAM_CHAT_ID', ''),
+        ],
+        'whatsapp' => [
+            'enabled'       => (bool) env('WHATSAPP_NOTIFICATIONS_ENABLED', false),
+            'api_url'       => env('WHATSAPP_API_URL', ''),
+            'api_key'       => env('WHATSAPP_API_KEY', ''),
+            'target_number' => env('WHATSAPP_TARGET_NUMBER', ''),
+        ],
+    ],
+
 
     /*
     |--------------------------------------------------------------------------

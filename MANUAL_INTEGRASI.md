@@ -260,7 +260,7 @@ PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=0.0.0.0 --port=8088 --no-reloa
 ---
 
 ## 💻 9. Integrasi Frontend Widget
-
+ 
 Sematkan widget pada layout web Anda (`app.blade.php` atau `index.html`):
 
 ```html
@@ -268,12 +268,125 @@ Sematkan widget pada layout web Anda (`app.blade.php` atau `index.html`):
 <script 
     src="/chat-widget.js" 
     data-webhook="/api/webhook/chat-entry" 
-    data-user-id="cust-8821">
+    data-user-id="cust-8821"
+    data-user-name="Budi Pratama"
+    data-bot-name="Asisten Virtual">
 </script>
 ```
 
 Widget secara otomatis:
+- Menyapa pengguna dengan nama personalnya saat pertama kali chat dibuka.
+- Menampilkan chip shortcut bantuan cepat (*Quick Actions*).
+- Menyediakan formulir lapor kendala langsung (*Issue Drawer*) dan pengenalan otomatis keluhan dari chat.
 - Menampilkan badge privasi: `🛡️ Privasi Aman (Anti-PII)`.
 - Menyaring data sensitif sebelum dikirim ke jaringan.
-- Menampilkan tag intent yang terdeteksi secara elegan.
-- **Aman**: Widget publik tidak pernah menampilkan sisa token atau data kuota ke pengunjung.
+- Menampilkan tag intent & kartu tiket resmi (#TCK-...) yang terdeteksi.
+
+---
+
+## 👋 10. Fitur Sapaan Awal Personal (Personalized Greeting)
+
+Ketika pengguna membuka bubble chat pertama kali, widget secara otomatis menyapa pengguna secara ramah dan profesional:
+- **Atribut yang didukung:**
+  - `data-user-name="Budi Pratama"`: Nama lengkap / panggilan pengguna.
+  - `data-user-id="USER-123"`: ID akun pengguna.
+  - `data-bot-name="Customer Support AI"`: Nama identitas asisten virtual.
+  - `data-greeting="Halo Kak Budi! Ada yang bisa kami bantu?"`: Teks kustom jika ingin override salam pembuka.
+- **Tampilan Sapaan:**
+  > *"Halo **Budi Pratama**! 👋 Ada yang bisa kami bantu hari ini? Silakan pilih bantuan cepat di bawah atau tanyakan apapun mengenai data toko Anda:"*
+- **Tombol Pintas (Quick Action Chips):**
+  - 📊 `Metrik Toko`: Menampilkan total earnings, orders, customers, balance.
+  - 📈 `Laporan Revenue`: Menampilkan rincian pendapatan bulanan.
+  - 🚨 `Lapor Kendala Fitur`: Membuka formulir lapor kendala langsung ke tim teknis.
+
+---
+
+## 🚨 11. Fitur Laporan Kendala / Gangguan Pelanggan & Tiket Tim Internal (Telegram / WhatsApp)
+
+Fitur ini memungkinkan pelanggan melaporkan masalah sistem (misalnya: **fitur tidak dapat diakses**, **tombol error 500**, **halaman checkout gagal**, atau **kendala transaksi**).
+
+### 🔄 Alur Kerja Pelaporan & Tiket:
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Pelanggan (Web Widget)
+    participant Widget as Chat Widget UI
+    participant n8n as n8n Orchestrator
+    participant Gemini as Gemini AI Intent Parser
+    participant DB as Isolated DB (chatbot_tickets)
+    participant Telegram as Telegram Bot Tim Internal
+    participant WhatsApp as WhatsApp Gateway Tim Internal
+
+    User->>Widget: Klik 'Lapor Kendala' atau ketik: "Min, fitur transaksi tidak bisa diakses"
+    Widget->>n8n: Kirim pesan tersanitasi ke /webhook/chat-entry
+    n8n->>Gemini: Parse pesan -> Klasifikasi intent: report_customer_issue
+    Gemini-->>n8n: Output slot: category, feature_name, description, urgency
+    n8n->>n8n: Generate nomor tiket: #TCK-YYYYMMDD-XXXX
+    par Notifikasi Paralel & Terprogram
+        n8n->>DB: Simpan tiket ke tabel chatbot_tickets (/api/v1/tickets)
+        n8n->>Telegram: Kirim Alert Tiket ke Grup/Chat Tim Internal
+        n8n->>WhatsApp: Kirim Pesan Alert ke Nomor/Grup WhatsApp Tim
+    end
+    n8n-->>Widget: Kembalikan respon konfirmasi + Nomor Tiket Resmi
+    Widget-->>User: Tampilkan Kartu Tiket Resmi (#TCK-...) dengan status OPEN
+```
+
+### ⚙️ Konfigurasi Notifikasi Telegram & WhatsApp di `.env`:
+
+#### 1. Setup Notifikasi Telegram:
+1. Buat bot Telegram baru via [@BotFather](https://t.me/botfather) dan dapatkan `HTTP API Token` (contoh: `123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ`).
+2. Dapatkan ID chat grup atau akun Anda via [@userinfobot](https://t.me/userinfobot) (contoh: `987654321` atau `-1001234567890`).
+3. Tambahkan ke file `.env`:
+```env
+TELEGRAM_NOTIFICATIONS_ENABLED=true
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ
+TELEGRAM_CHAT_ID=-1001234567890
+```
+
+#### 2. Setup Notifikasi WhatsApp (Opsional):
+Jika Anda menggunakan gateway WhatsApp (seperti Wablas, Fonnte, Twilio, atau custom webhook):
+```env
+WHATSAPP_NOTIFICATIONS_ENABLED=true
+WHATSAPP_API_URL=https://api.fonnte.com/send
+WHATSAPP_API_KEY=your_fonnte_token_here
+WHATSAPP_TARGET_NUMBER=08123456789
+```
+
+### 📋 Format Pesan Alert Tiket yang Diterima Tim Internal (Telegram):
+```text
+🚨 TIKET GANGGUAN SISTEM BARU
+━━━━━━━━━━━━━━━━━━━━━━
+🎫 Nomor Tiket: TCK-20261021-2084
+👤 Pelapor: USER-BUDI-123 (Budi Pratama)
+📋 Kategori: Fitur Tidak Dapat Diakses
+🛠 Fitur Terkendala: Riwayat Transaksi
+⚠️ Tingkat Urgensi: TINGGI
+
+📝 Deskripsi Masalah:
+"Pengguna mengeluh tombol riwayat transaksi tidak bisa dibuka, hanya memuat (loading) terus menerus."
+
+💬 ID Percakapan: conv-5gj873h
+🕒 Waktu Laporan: 21/10/2026 23:40:00 WIB
+━━━━━━━━━━━━━━━━━━━━━━
+👉 Mohon tim teknis segera memeriksa dan menindaklanjuti kendala ini.
+```
+
+### 🗄️ Tabel Database Terisolasi: `chatbot_tickets`
+Tabel ini dibuat melalui migrasi `2025_01_01_000002_create_chatbot_tickets_table.php`:
+- `ticket_number`: Nomor unik tiket (misal: `TCK-20261021-9821`)
+- `conversation_id`: Referensi sesi percakapan
+- `user_id`: ID pengguna pelapor
+- `user_name`: Nama pengguna
+- `category`: Kategori masalah (`fitur_tidak_dapat_diakses`, `bug_error`, `transaksi`, dll.)
+- `feature_name`: Nama fitur yang terkendala
+- `description`: Detail masalah (bebas dari PII)
+- `urgency`: `rendah`, `sedang`, `tinggi`, `darurat`
+- `status`: `open`, `investigating`, `resolved`, `closed`
+- `notified_channels`: Rekam jejak status pengiriman notifikasi `{"telegram": true, "whatsapp": false}`
+
+### 🔌 Endpoint REST API Tiket Internal (Protected):
+- `POST /api/v1/tickets`: Menerbitkan tiket baru dan memicu notifikasi Telegram/WhatsApp.
+- `GET /api/v1/tickets`: Menampilkan daftar tiket (filter: `status`, `user_id`, `category`).
+- `GET /api/v1/tickets/{ticketNumber}`: Mengambil detail tiket.
+- `PATCH /api/v1/tickets/{ticketNumber}/status`: Memperbarui status penanganan tiket (`open` ➔ `investigating` ➔ `resolved`).
+

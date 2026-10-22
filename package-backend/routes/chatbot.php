@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AiCapabilityController;
 use App\Http\Controllers\Api\ConversationMemoryController;
+use App\Http\Controllers\Api\TicketReportController;
 use App\Http\Controllers\Api\TokenUsageController;
 use App\Http\Middleware\VerifyInternalApiKey;
 use Illuminate\Http\Request;
@@ -47,6 +48,12 @@ Route::middleware([VerifyInternalApiKey::class])->prefix('v1')->group(function (
     // Multi-turn Conversation Memory (Bebas PII & Terisolasi)
     Route::get('/conversations/{conversationId}/messages', [ConversationMemoryController::class, 'getMessages']);
     Route::post('/conversations/{conversationId}/messages', [ConversationMemoryController::class, 'storeMessage']);
+
+    // Tiket Kendala & Feedback Pelanggan (Telegram & WhatsApp Alerts ke Tim Internal)
+    Route::post('/tickets', [TicketReportController::class, 'store']);
+    Route::get('/tickets', [TicketReportController::class, 'index']);
+    Route::get('/tickets/{ticketNumber}', [TicketReportController::class, 'show']);
+    Route::patch('/tickets/{ticketNumber}/status', [TicketReportController::class, 'updateStatus']);
 
     // Fitur Pengecekan & Pemantauan Token Gemini (TERPISAH)
     Route::prefix('ai/tokens')->group(function () {
