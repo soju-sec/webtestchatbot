@@ -181,6 +181,9 @@
           <div class="ai-quick-chips">
             <button type="button" class="ai-chip-btn" data-query="Cek ringkasan metrik toko saya">📊 Metrik Toko</button>
             <button type="button" class="ai-chip-btn" data-query="Tampilkan performa revenue bulanan">📈 Laporan Revenue</button>
+            <button type="button" class="ai-chip-btn" data-query="Saya tidak bisa login ke akun, harus apa ya?">🔑 Bantuan Login</button>
+            <button type="button" class="ai-chip-btn" data-query="File laporan tidak bisa diexport, bagaimana solusinya?">📑 Gagal Export</button>
+            <button type="button" class="ai-chip-btn" data-query="Data penjualan di laporan tidak sesuai ada selisih">📋 Selisih Data</button>
             <button type="button" class="ai-chip-btn ai-chip-issue" id="ai-btn-open-issue-form">🚨 Lapor Kendala Fitur</button>
           </div>
         </div>

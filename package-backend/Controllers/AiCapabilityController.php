@@ -28,7 +28,8 @@ class AiCapabilityController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'endpoints' => $cleanEndpoints
+            'endpoints' => $cleanEndpoints,
+            'support_templates' => config('ai_registry.support_templates', [])
         ]);
     }
 }
