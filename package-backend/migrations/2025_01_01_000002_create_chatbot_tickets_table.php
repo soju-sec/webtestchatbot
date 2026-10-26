@@ -40,6 +40,8 @@ return new class extends Migration
                 $table->string('urgency')->default('tinggi'); // rendah, sedang, tinggi, darurat
                 $table->string('status')->default('open')->index(); // open, investigating, resolved, closed
                 $table->string('channel')->default('web');
+                $table->string('jira_key')->nullable()->index(); // Contoh: SUP-12
+                $table->string('jira_url')->nullable();          // Contoh: https://imtekservice.atlassian.net/browse/SUP-12
                 $table->json('notified_channels')->nullable(); // e.g. {"telegram": true, "whatsapp": false}
                 $table->json('metadata')->nullable();
                 $table->timestamps();

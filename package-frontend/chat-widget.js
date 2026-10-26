@@ -68,6 +68,9 @@
       @keyframes ai-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
       .ai-ticket-copy-btn { background: #fee2e2; border: 1px solid #f87171; color: #991b1b; font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 4px; cursor: pointer; transition: background 0.15s; }
       .ai-ticket-copy-btn:hover { background: #fecaca; }
+      .ai-ticket-jira-box { background: #f0f7ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 6px 8px; font-size: 11.5px; color: #0369a1; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+      .ai-jira-badge-link { background: #0052cc; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; transition: background 0.15s; }
+      .ai-jira-badge-link:hover { background: #0747a6; color: #ffffff !important; }
 
       /* Issue Reporting Drawer */
       #ai-issue-drawer { display: none; background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 12px 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.06); animation: ai-fade-in 0.2s ease; }
@@ -128,7 +131,7 @@
             <option value="rendah">Rendah (Minor / Feedback)</option>
           </select>
           <div class="ai-drawer-notice">
-            📢 Tiket laporan akan otomatis diteruskan ke <b>Tim Internal (Telegram / WhatsApp)</b>.
+            📢 Tiket laporan akan otomatis diteruskan ke <b>Tim Internal (Slack / Tim Teknis)</b>.
           </div>
           <div class="ai-drawer-actions">
             <button type="button" id="ai-issue-submit" class="ai-drawer-submit-btn">🚀 Kirim Tiket Gangguan</button>
@@ -306,9 +309,12 @@
 
       // Render Visual Ticket Card jika terdeteksi laporan tiket
       if (isTicket && rawData && (rawData.ticket_number || rawData.ticket_data)) {
-        const ticketNum = rawData.ticket_number || (rawData.ticket_data && rawData.ticket_data.ticket_number) || 'TCK-BARU';
-        const feature = (rawData.ticket_data && rawData.ticket_data.feature_name) || (rawData.parameters && rawData.parameters.feature_name) || 'Fitur Sistem';
-        const urgency = ((rawData.ticket_data && rawData.ticket_data.urgency) || (rawData.parameters && rawData.parameters.urgency) || 'TINGGI').toUpperCase();
+        const ticketNum = rawData.ticket_number || (rawData.ticket_data && rawData.ticket_data.ticket_number) || (rawData.ticket && rawData.ticket.ticket_number) || 'TCK-BARU';
+        const feature = (rawData.ticket_data && rawData.ticket_data.feature_name) || (rawData.ticket && rawData.ticket.feature_name) || (rawData.parameters && rawData.parameters.feature_name) || 'Fitur Sistem';
+        const urgency = ((rawData.ticket_data && rawData.ticket_data.urgency) || (rawData.ticket && rawData.ticket.urgency) || (rawData.parameters && rawData.parameters.urgency) || 'TINGGI').toUpperCase();
+
+        const jiraKey = (rawData.jira && rawData.jira.key) || (rawData.ticket && rawData.ticket.jira_key) || rawData.jira_key || null;
+        const jiraUrl = (rawData.jira && rawData.jira.url) || (rawData.ticket && rawData.ticket.jira_url) || rawData.jira_url || (jiraKey ? `https://imtekservice.atlassian.net/browse/${jiraKey}` : null);
 
         content += `
           <div class="ai-ticket-card">
@@ -320,11 +326,25 @@
               <div><b>🛠 Fitur:</b> ${feature}</div>
               <div><b>⚡ Urgensi:</b> ${urgency}</div>
             </div>
+            ${jiraKey && jiraUrl ? `
+            <div class="ai-ticket-jira-box">
+              <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="font-size: 13px;">🌐</span>
+                <span><b>Jira Service Desk:</b> SUP</span>
+              </div>
+              <a href="${jiraUrl}" target="_blank" rel="noopener noreferrer" class="ai-jira-badge-link">
+                ${jiraKey} ↗
+              </a>
+            </div>
+            ` : ''}
             <div class="ai-ticket-alert-box">
               <span class="ai-pulse-dot"></span>
-              <span>Notifikasi tiket telah diteruskan ke <b>Tim Internal via Telegram & WhatsApp</b>.</span>
+              <span>Notifikasi tiket telah diteruskan ke <b>Tim Internal (Slack & Jira)</b>.</span>
             </div>
-            <button type="button" class="ai-ticket-copy-btn" data-ticket="${ticketNum}">📋 Salin Nomor Tiket</button>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button type="button" class="ai-ticket-copy-btn" data-ticket="${ticketNum}">📋 Salin No. Tiket</button>
+              ${jiraUrl ? `<a href="${jiraUrl}" target="_blank" rel="noopener noreferrer" style="font-size: 11px; color: #0052cc; font-weight: 600; text-decoration: none; margin-left: auto;">Lihat di Jira ↗</a>` : ''}
+            </div>
           </div>
         `;
       }

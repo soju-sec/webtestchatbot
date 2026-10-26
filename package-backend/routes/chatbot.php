@@ -49,11 +49,15 @@ Route::middleware([VerifyInternalApiKey::class])->prefix('v1')->group(function (
     Route::get('/conversations/{conversationId}/messages', [ConversationMemoryController::class, 'getMessages']);
     Route::post('/conversations/{conversationId}/messages', [ConversationMemoryController::class, 'storeMessage']);
 
-    // Tiket Kendala & Feedback Pelanggan (Telegram & WhatsApp Alerts ke Tim Internal)
+    // Tiket Kendala & Feedback Pelanggan (Slack, Telegram, WhatsApp & Jira Service Desk)
     Route::post('/tickets', [TicketReportController::class, 'store']);
     Route::get('/tickets', [TicketReportController::class, 'index']);
     Route::get('/tickets/{ticketNumber}', [TicketReportController::class, 'show']);
     Route::patch('/tickets/{ticketNumber}/status', [TicketReportController::class, 'updateStatus']);
+    Route::match(['get', 'post'], '/tickets/{ticketNumber}/jira-sync', [TicketReportController::class, 'syncJiraStatus']);
+
+    // Integrasi Jira Service Management (Proyek SUP)
+    Route::match(['get', 'post'], '/jira/test-connection', [TicketReportController::class, 'testJiraConnection']);
 
     // Fitur Pengecekan & Pemantauan Token Gemini (TERPISAH)
     Route::prefix('ai/tokens')->group(function () {

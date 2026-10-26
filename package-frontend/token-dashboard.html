@@ -379,6 +379,39 @@
       </div>
     </div>
 
+    <!-- 🌐 Jira Service Management (Proyek SUP) -->
+    <div class="card" style="margin-bottom: 24px; border-left: 4px solid #0052cc;">
+      <div class="card-label">
+        <span style="display:flex; align-items:center; gap:8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#38bdf8"><path d="M11.53 2c0 5.25 4.28 9.53 9.53 9.53h.94v-1.88h-.94c-4.22 0-7.65-3.43-7.65-7.65V1.06h-1.88V2zm-9.53 9.53c0 5.25 4.28 9.53 9.53 9.53h.94v-1.88h-.94c-4.22 0-7.65-3.43-7.65-7.65v-.94H2v.94zm0-9.53c0 5.25 4.28 9.53 9.53 9.53h.94V9.65h-.94C7.81 9.65 4.38 6.22 4.38 2V1.06H2V2z"/></svg>
+          Integrasi Jira Service Management (Atlassian)
+        </span>
+        <span id="badge-jira-status" class="pill" style="background: rgba(0, 82, 204, 0.2); color: #38bdf8; border: 1px solid rgba(0, 82, 204, 0.4);">Proyek SUP</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-top:8px;">
+        <div style="flex: 1; min-width: 250px;">
+          <div style="font-size:13px; color:var(--text-muted); margin-bottom:4px;">Target Service Desk:</div>
+          <div style="font-size:14px; font-weight:600; color:var(--text-main);">
+            <a href="https://imtekservice.atlassian.net/jira/servicedesk/projects/SUP/getting-started" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: none;">
+              imtekservice.atlassian.net / SUP ↗
+            </a>
+          </div>
+          <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+            Setiap kendala yang dilaporkan pelanggan otomatis diteruskan menjadi tiket resmi di <b>Jira Service Desk</b> dan alert Slack/Telegram internal.
+          </div>
+        </div>
+        <div style="flex: 1; min-width: 280px; background:rgba(15,23,42,0.5); padding:12px; border-radius:8px; border:1px solid var(--card-border);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <div style="font-size:12px; color:var(--text-muted); font-weight:600;">Status Koneksi API:</div>
+            <button id="btn-test-jira" class="btn" style="padding: 4px 10px; font-size: 11px;">🔌 Test Koneksi Jira</button>
+          </div>
+          <div id="jira-test-result" style="font-size:12px; color:var(--text-muted); line-height: 1.4;">
+            Klik tombol di atas untuk menguji koneksi & memeriksa ketersediaan Project SUP di Jira Cloud.
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Live Calculator & Model Limits -->
     <div class="split-grid">
       <!-- Live Calculator -->
@@ -613,6 +646,52 @@
         // Fallback hitung lokal
         const estTokens = Math.max(1, Math.ceil(text.length / 3.5));
         resDiv.innerHTML = `🪙 <b>Estimasi Lokal: ~${estTokens} token</b> (${text.length} karakter)`;
+      }
+    });
+
+    // Test Koneksi Jira Service Desk
+    document.getElementById('btn-test-jira').addEventListener('click', async () => {
+      const resDiv = document.getElementById('jira-test-result');
+      const badge = document.getElementById('badge-jira-status');
+      const baseUrl = inputUrl.value.trim().replace(/\/+$/, '');
+      const apiKey = inputKey.value.trim();
+
+      resDiv.innerHTML = '<span style="color:#60a5fa;">⏳ Menghubungi Atlassian Jira Cloud REST API...</span>';
+
+      try {
+        const res = await fetch(`${baseUrl}/api/v1/jira/test-connection`, {
+          method: 'POST',
+          headers: {
+            'X-Internal-API-Key': apiKey,
+            'Accept': 'application/json'
+          }
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          badge.style.background = 'rgba(16, 185, 129, 0.2)';
+          badge.style.color = '#10b981';
+          badge.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+          badge.innerText = 'Connected: SUP';
+
+          resDiv.innerHTML = `
+            <div style="color: #10b981; font-weight:600; margin-bottom:4px;">✓ Terhubung ke ${data.project_name} (${data.project_key})</div>
+            <div>User: <b>${data.user.displayName}</b> (${data.user.emailAddress})</div>
+            <div style="color:#94a3b8; font-size:11px; margin-top:2px;">Tipe Issue Tersedia: ${data.available_issue_types.map(t => t.name).slice(0, 4).join(', ')}</div>
+          `;
+        } else {
+          badge.style.background = 'rgba(239, 68, 68, 0.2)';
+          badge.style.color = '#ef4444';
+          badge.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+          badge.innerText = 'Error / Belum Diisi';
+
+          resDiv.innerHTML = `
+            <div style="color: #ef4444; font-weight:600; margin-bottom:2px;">✗ ${data.message || 'Koneksi gagal'}</div>
+            <div style="color:#94a3b8; font-size:11px;">Pastikan JIRA_USER_EMAIL & JIRA_API_TOKEN sudah diisi di .env</div>
+          `;
+        }
+      } catch (err) {
+        resDiv.innerHTML = `<span style="color:#ef4444;">✗ Gagal menghubungi backend endpoint: ${err.message}</span>`;
       }
     });
 

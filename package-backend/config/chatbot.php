@@ -31,14 +31,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Notifikasi Tiket Gangguan Pelanggan (Telegram & WhatsApp)
+    | Notifikasi Tiket Gangguan Pelanggan (Slack, Telegram & WhatsApp)
     |--------------------------------------------------------------------------
     | Otomatis mengirimkan alert langsung ke tim internal saat ada pelanggan
     | yang melaporkan fitur tidak dapat diakses, bug sistem, atau keluhan.
+    |
+    | Rekomendasi Utama: Gunakan Slack untuk pelaporan yang tertata rapi
+    | dengan format Block Kit dan thread diskusi antar-anggota tim internal.
     */
     'notifications' => [
+        'slack' => [
+            'enabled'     => (bool) env('SLACK_NOTIFICATIONS_ENABLED', true),
+            'webhook_url' => env('SLACK_WEBHOOK_URL', ''),
+            'channel'     => env('SLACK_CHANNEL', '#customer-tickets'),
+        ],
         'telegram' => [
-            'enabled'   => (bool) env('TELEGRAM_NOTIFICATIONS_ENABLED', true),
+            'enabled'   => (bool) env('TELEGRAM_NOTIFICATIONS_ENABLED', false),
             'bot_token' => env('TELEGRAM_BOT_TOKEN', ''),
             'chat_id'   => env('TELEGRAM_CHAT_ID', ''),
         ],
@@ -50,6 +58,26 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Integrasi Jira Service Management / Jira Service Desk (Atlassian)
+    |--------------------------------------------------------------------------
+    | Setiap tiket kendala pelanggan yang dibuat oleh chatbot akan otomatis
+    | diteruskan ke Jira Service Desk (Project: SUP) di instance Atlassian Anda:
+    | https://imtekservice.atlassian.net/jira/servicedesk/projects/SUP
+    |
+    | Kredensial yang dibutuhkan:
+    | - JIRA_USER_EMAIL : Email akun Atlassian Anda
+    | - JIRA_API_TOKEN  : API Token dibuat dari https://id.atlassian.com/manage-profile/security/api-tokens
+    */
+    'jira' => [
+        'enabled'     => (bool) env('JIRA_ENABLED', true),
+        'host'        => env('JIRA_HOST', 'imtekservice.atlassian.net'),
+        'project_key' => env('JIRA_PROJECT_KEY', 'SUP'),
+        'user_email'  => env('JIRA_USER_EMAIL', ''),
+        'api_token'   => env('JIRA_API_TOKEN', ''),
+        'issue_type'  => env('JIRA_ISSUE_TYPE', 'Service Request'),
+    ],
 
     /*
     |--------------------------------------------------------------------------

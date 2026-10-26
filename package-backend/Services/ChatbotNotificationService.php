@@ -49,9 +49,15 @@ class ChatbotNotificationService
             $urgencyEmoji = '⚡';
         }
 
+        $jiraKey      = $ticket['jira_key'] ?? null;
+        $jiraUrl      = $ticket['jira_url'] ?? null;
+
         $message = "🚨 *TIKET GANGGUAN BARU DARI PELANGGAN*\n";
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
         $message .= "🎫 *Nomor Tiket*: `{$ticketNumber}`\n";
+        if (!empty($jiraKey) && !empty($jiraUrl)) {
+            $message .= "🌐 *Jira Service Desk*: [{$jiraKey}]({$jiraUrl})\n";
+        }
         $message .= "👤 *Pelapor*: `{$userId}`{$userName}\n";
         $message .= "📋 *Kategori*: {$category}\n";
         $message .= "🛠 *Fitur Terkendala*: *{$featureName}*\n";
@@ -114,9 +120,15 @@ class ChatbotNotificationService
         $urgency      = strtoupper($ticket['urgency'] ?? 'TINGGI');
         $createdAt    = date('Y-m-d H:i:s') . ' WIB';
 
+        $jiraKey      = $ticket['jira_key'] ?? null;
+        $jiraUrl      = $ticket['jira_url'] ?? null;
+
         $textMessage = "*[TIKET GANGGUAN SISTEM BARU]*\n\n"
-            . "*No. Tiket*: {$ticketNumber}\n"
-            . "*User*: {$userId}{$userName}\n"
+            . "*No. Tiket*: {$ticketNumber}\n";
+        if (!empty($jiraKey) && !empty($jiraUrl)) {
+            $textMessage .= "*Jira Ticket*: {$jiraKey} ({$jiraUrl})\n";
+        }
+        $textMessage .= "*User*: {$userId}{$userName}\n"
             . "*Kategori*: {$category}\n"
             . "*Fitur Terkendala*: {$featureName}\n"
             . "*Urgensi*: {$urgency}\n\n"
@@ -155,20 +167,186 @@ class ChatbotNotificationService
     }
 
     /**
-     * Dispatch notifikasi ke semua channel internal (Telegram & WhatsApp).
+     * Mengirim notifikasi tiket gangguan ke Slack Channel Tim Internal.
+     * Menggunakan Slack Incoming Webhook dengan layout Block Kit yang sangat rapi dan tertata.
+     *
+     * @param array $ticket Data tiket lengkap
+     * @return array Status pengiriman ['success' => bool, 'message' => string]
+     */
+    public static function sendSlackTicketAlert(array $ticket): array
+    {
+        $webhookUrl = config('chatbot.notifications.slack.webhook_url', env('SLACK_WEBHOOK_URL', ''));
+        $channel    = config('chatbot.notifications.slack.channel', env('SLACK_CHANNEL', '#customer-tickets'));
+        $enabled    = config('chatbot.notifications.slack.enabled', env('SLACK_NOTIFICATIONS_ENABLED', true));
+
+        if (!$enabled) {
+            return ['success' => false, 'message' => 'Notifikasi Slack dinonaktifkan'];
+        }
+
+        if (empty($webhookUrl)) {
+            Log::info('[ChatbotNotificationService] Slack webhook_url belum disetel di .env. Notifikasi di-skip.');
+            return ['success' => false, 'message' => 'Slack webhook URL tidak disetel'];
+        }
+
+        $ticketNumber = $ticket['ticket_number'] ?? 'TCK-' . strtoupper(substr(uniqid(), -6));
+        $userId       = $ticket['user_id'] ?? 'guest';
+        $userName     = !empty($ticket['user_name']) ? " ({$ticket['user_name']})" : "";
+        $category     = self::formatCategory($ticket['category'] ?? 'fitur_tidak_dapat_diakses');
+        $featureName  = $ticket['feature_name'] ?? 'Fitur Sistem';
+        $description  = $ticket['description'] ?? 'Tidak ada detail';
+        $urgency      = strtoupper($ticket['urgency'] ?? 'TINGGI');
+        $conversation = $ticket['conversation_id'] ?? '-';
+        $channelSrc   = $ticket['channel'] ?? 'web';
+        $createdAt    = date('Y-m-d H:i:s') . ' WIB';
+
+        // Penentuan warna border bar & emoji urgensi Slack
+        $urgencyEmoji = '⚠️';
+        $barColor     = '#ea580c'; // default orange (tinggi)
+        if ($urgency === 'DARURAT' || $urgency === 'CRITICAL') {
+            $urgencyEmoji = '🔥';
+            $barColor     = '#e11d48'; // red
+        } elseif ($urgency === 'TINGGI' || $urgency === 'HIGH') {
+            $urgencyEmoji = '🚨';
+            $barColor     = '#ea580c'; // orange
+        } elseif ($urgency === 'SEDANG' || $urgency === 'MEDIUM') {
+            $urgencyEmoji = '⚡';
+            $barColor     = '#eab308'; // yellow
+        } else {
+            $barColor     = '#2563eb'; // blue
+        }
+
+        $jiraKey      = $ticket['jira_key'] ?? null;
+        $jiraUrl      = $ticket['jira_url'] ?? null;
+
+        $ticketField = "*🎫 No. Tiket:*\n`#{$ticketNumber}`";
+        if (!empty($jiraKey) && !empty($jiraUrl)) {
+            $ticketField = "*🎫 No. Tiket:*\n`#{$ticketNumber}`\n*🌐 Jira:* <{$jiraUrl}|{$jiraKey}>";
+        }
+
+        // Susun payload Block Kit Slack yang rapi & terstruktur
+        $blocks = [
+            [
+                'type' => 'header',
+                'text' => [
+                    'type'  => 'plain_text',
+                    'text'  => '🚨 Tiket Gangguan Baru dari Pelanggan',
+                    'emoji' => true
+                ]
+            ],
+            [
+                'type'   => 'section',
+                'fields' => [
+                    [
+                        'type' => 'mrkdwn',
+                        'text' => $ticketField
+                    ],
+                    [
+                        'type' => 'mrkdwn',
+                        'text' => "*👤 Pelapor:*\n`{$userId}`{$userName}"
+                    ],
+                    [
+                        'type' => 'mrkdwn',
+                        'text' => "*📋 Kategori:*\n{$category}"
+                    ],
+                    [
+                        'type' => 'mrkdwn',
+                        'text' => "*🛠 Fitur Terkendala:*\n*{$featureName}*"
+                    ],
+                    [
+                        'type' => 'mrkdwn',
+                        'text' => "*{$urgencyEmoji} Urgensi:*\n*{$urgency}*"
+                    ],
+                    [
+                        'type' => 'mrkdwn',
+                        'text' => "*🕒 Waktu Laporan:*\n{$createdAt}"
+                    ]
+                ]
+            ],
+            [
+                'type' => 'section',
+                'text' => [
+                    'type' => 'mrkdwn',
+                    'text' => "*📝 Detail Kendala:*\n>{$description}"
+                ]
+            ]
+        ];
+
+        // Jika tiket terdaftar di Jira Service Desk, tambahkan section khusus dengan tombol direct ke Jira
+        if (!empty($jiraKey) && !empty($jiraUrl)) {
+            $blocks[] = [
+                'type' => 'section',
+                'text' => [
+                    'type' => 'mrkdwn',
+                    'text' => "*🎯 Jira Service Management (SUP):*\nTiket berhasil diteruskan ke Jira Service Desk: *<{$jiraUrl}|{$jiraKey}>*"
+                ],
+                'accessory' => [
+                    'type' => 'button',
+                    'text' => [
+                        'type'  => 'plain_text',
+                        'text'  => 'Buka di Jira ↗',
+                        'emoji' => true
+                    ],
+                    'url'   => $jiraUrl,
+                    'action_id' => 'btn_open_jira'
+                ]
+            ];
+        }
+
+        $blocks[] = [
+            'type' => 'context',
+            'elements' => [
+                [
+                    'type' => 'mrkdwn',
+                    'text' => "💬 *ID Percakapan:* `{$conversation}` | *Kanal:* `{$channelSrc}` | *Status:* `OPEN` | _Tindak lanjuti kendala ini pada thread chat._"
+                ]
+            ]
+        ];
+
+        $payload = [
+            'channel' => $channel,
+            'text'    => "🚨 [TIKET GANGGUAN BARU] #{$ticketNumber} - Fitur: {$featureName} ({$urgency})" . (!empty($jiraKey) ? " [Jira: {$jiraKey}]" : ''),
+            'attachments' => [
+                [
+                    'color'  => $barColor,
+                    'blocks' => $blocks
+                ]
+            ]
+        ];
+
+        try {
+            $response = Http::timeout(10)->post($webhookUrl, $payload);
+
+            if ($response->successful()) {
+                Log::info("[ChatbotNotificationService] Berhasil kirim notifikasi Slack untuk tiket {$ticketNumber}");
+                return ['success' => true, 'message' => 'Notifikasi Slack berhasil dikirim'];
+            }
+
+            Log::warning("[ChatbotNotificationService] Gagal kirim Slack: " . $response->body());
+            return ['success' => false, 'message' => 'Slack Webhook error: ' . $response->status()];
+        } catch (\Throwable $e) {
+            Log::warning("[ChatbotNotificationService] Exception saat kirim Slack: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Dispatch notifikasi ke semua channel internal yang aktif (Slack, Telegram, WhatsApp).
      *
      * @param array $ticket Data tiket
      * @return array Status per channel
      */
     public static function notifyAll(array $ticket): array
     {
+        $slackResult    = self::sendSlackTicketAlert($ticket);
         $telegramResult = self::sendTelegramTicketAlert($ticket);
         $whatsappResult = self::sendWhatsAppTicketAlert($ticket);
 
         return [
+            'slack'    => $slackResult['success'] ?? false,
             'telegram' => $telegramResult['success'] ?? false,
             'whatsapp' => $whatsappResult['success'] ?? false,
             'details'  => [
+                'slack'    => $slackResult,
                 'telegram' => $telegramResult,
                 'whatsapp' => $whatsappResult,
             ]

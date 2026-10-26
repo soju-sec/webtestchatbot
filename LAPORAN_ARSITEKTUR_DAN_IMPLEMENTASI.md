@@ -1,15 +1,15 @@
 # DOKUMEN ARSITEKTUR & IMPLEMENTASI TEKNIS INTERNAL
 
-**Proyek:** Universal AI Chatbot Terisolasi dengan AI Intent Parser, Anti-PII Privacy Shield, Contextual Multi-Turn Memory, Realtime Telegram/WhatsApp Incident Ticketing, & Isolated Token Monitor  
+**Proyek:** Universal AI Chatbot Terisolasi dengan AI Intent Parser, Anti-PII Privacy Shield, Contextual Multi-Turn Memory, Realtime Slack/Multi-Channel Incident Ticketing, & Isolated Token Monitor  
 **Klasifikasi Dokumen:** Internal Confidential / Restricted Engineering Document  
 **Pola Desain:** Deterministic Data Pipeline with Isolated AI Intent Parsing & Contextual Multi-Turn Memory (Zero-Knowledge LLM Architecture)  
-**Target Sistem:** n8n Orchestrator, Google Gemini 2.5 Flash (Multi-Key Pool), Laravel 11 Core API, Web Client Widget v2.0 (Vanilla JS / CSS), Telegram Bot API, WhatsApp API Gateway, PostgreSQL 16 / MySQL / SQLite  
+**Target Sistem:** n8n Orchestrator, Google Gemini 2.5 Flash (Multi-Key Pool), Laravel 11 Core API, Web Client Widget v2.0 (Vanilla JS / CSS), Slack Incoming Webhook (Block Kit), Telegram Bot API, WhatsApp API Gateway, PostgreSQL 16 / MySQL / SQLite  
 
 ---
 
 ## 1. Executive Summary & Latar Belakang
 
-Sistem ini dirancang secara strategis untuk menghadirkan **asisten virtual interaktif, adaptif, dan berstandar enterprise** pada portal web layanan publik dan aplikasi bisnis. Asisten virtual ini mampu menjawab pertanyaan seputar metrik transaksi, performa penjualan/pendapatan, status order, menjawab panduan layanan, serta menangani **pelaporan gangguan sistem oleh pelanggan secara otomatis dengan menerbitkan tiket resmi dan mengirimkan notifikasi instan ke tim teknis internal via Telegram dan WhatsApp**.
+Sistem ini dirancang secara strategis untuk menghadirkan **asisten virtual interaktif, adaptif, dan berstandar enterprise** pada portal web layanan publik dan aplikasi bisnis. Asisten virtual ini mampu menjawab pertanyaan seputar metrik transaksi, performa penjualan/pendapatan, status order, menjawab panduan layanan, serta menangani **pelaporan gangguan sistem oleh pelanggan secara otomatis dengan menerbitkan tiket resmi dan mengirimkan notifikasi instan yang tertata rapi ke Channel Slack Tim Teknis Internal (didukung opsi redundansi ke Telegram dan WhatsApp)**.
 
 ### 1.1. Tantangan Utama & Solusi Rekayasa Sistem
 
@@ -25,9 +25,9 @@ Sistem ini dirancang secara strategis untuk menghadirkan **asisten virtual inter
    - Agar interaksi percakapan terasa alami, asisten harus mengingat konteks obrolan sebelumnya (*multi-turn conversation*), misalnya ketika pengguna menanyakan *"Tolong cek transaksi saya"* lalu di pesan berikutnya hanya mengetikkan *"Kalau bulan depannya lagi bagaimana?"*.
    - **Solusi Rekayasa:** Seluruh riwayat percakapan yang disimpan di basis data memori telah melalui proses sanitasi PII. Saat riwayat diinjeksikan kembali ke prompt AI, sistem menjamin tidak ada kebocoran data sensitif masa lalu yang masuk ke jendela konteks (*context window*).
 
-4. **Sistem Tiket Gangguan & Alert Realtime Tim Internal (Telegram & WhatsApp):**
+4. **Sistem Tiket Gangguan & Alert Realtime Tim Internal (Slack Channel - Tertata & Terstruktur):**
    - Saat pelanggan menghadapi masalah teknis (misal: fitur transaksi tidak dapat diakses, error 500, atau kendala checkout), keluhan tidak boleh hilang begitu saja di riwayat chat bot.
-   - **Solusi Rekayasa:** AI Intent Parser secara otomatis mengidentifikasi intent `report_customer_issue`, mengekstrak atribut masalah (`feature_name`, `category`, `urgency`, `description`), membuat **Nomor Tiket Resmi (#TCK-YYYYMMDD-XXXX)**, menyimpannya di tabel terisolasi `chatbot_tickets`, dan secara paralel mengirimkan alert instan ke **Grup Telegram Tim Internal** serta **WhatsApp Gateway**. Di sisi pengguna, widget menampilkan **Kartu Tiket Visual Interaktif** lengkap dengan status `OPEN` dan tombol salin nomor tiket.
+   - **Solusi Rekayasa:** AI Intent Parser secara otomatis mengidentifikasi intent `report_customer_issue`, mengekstrak atribut masalah (`feature_name`, `category`, `urgency`, `description`), membuat **Nomor Tiket Resmi (#TCK-YYYYMMDD-XXXX)**, menyimpannya di tabel terisolasi `chatbot_tickets`, dan secara paralel mengirimkan alert instan yang tertata rapi ke **Channel Slack Tim Internal** (`#customer-tickets`) menggunakan **Slack Block Kit** (indikator warna tingkat urgensi, informasi field dua kolom, dan dukungan diskusi lanjutan di thread). Tersedia pula opsi pengiriman cadangan ke Telegram Bot dan WhatsApp Gateway. Di sisi pengguna, widget menampilkan **Kartu Tiket Visual Interaktif** lengkap dengan status `OPEN` dan tombol salin nomor tiket.
 
 5. **Isolasi Database Total (Zero-Disruption Architecture):**
    - Integrasi chatbot tidak boleh membebani atau membahayakan basis data produksi utama.
@@ -73,7 +73,7 @@ graph TD
             API_Memory["Conversation Memory API<br/>(/api/v1/conversations/{id}/messages)"]
             API_Tickets["Ticket Incident Controller<br/>(/api/v1/tickets)"]
             API_Tokens["Token Tracking Controller<br/>(/api/v1/ai/tokens/*)"]
-            Notif_Service["ChatbotNotificationService<br/>(Telegram & WhatsApp Dispatcher)"]
+            Notif_Service["ChatbotNotificationService<br/>(Slack, Telegram & WhatsApp Dispatcher)"]
         end
 
         subgraph DB ["BASIS DATA TERISOLASI (POSTGRESQL / MYSQL / SQLITE)"]
@@ -85,8 +85,9 @@ graph TD
 
     subgraph ZONA_EKSTERNAL ["ZONA EKSTERNAL (CLOUD AI & NOTIFICATION GATEWAYS)"]
         Gemini["GOOGLE AI STUDIO (Gemini 2.5 Flash)<br/>Mode: JSON Schema Intent Parsing<br/>Bebas PII 100%"]
-        Telegram["TELEGRAM BOT API<br/>(Grup/Channel Tim Internal)"]
-        WhatsApp["WHATSAPP API GATEWAY<br/>(Wablas / Fonnte / Webhook)"]
+        Slack["SLACK INCOMING WEBHOOK<br/>(Channel #customer-tickets / Block Kit)"]
+        Telegram["TELEGRAM BOT API<br/>(Grup/Channel Tim Internal - Opsional)"]
+        WhatsApp["WHATSAPP API GATEWAY<br/>(Wablas / Fonnte / Webhook - Opsional)"]
     end
 
     Web -- "1. POST Pesan Chat (User ID & Name)" --> N1
@@ -112,10 +113,11 @@ graph TD
     N6 -- "Terdeteksi Intent Laporan Tiket" --> API_Tickets
     API_Tickets --> Tbl_Tck
     API_Tickets --> Notif_Service
-    Notif_Service -- "Alert Instan via Bot API" --> Telegram
-    Notif_Service -- "Alert via HTTP Gateway" --> WhatsApp
+    Notif_Service -- "Alert Instan Webhook (Block Kit)" --> Slack
+    Notif_Service -. "Alert Cadangan Bot API" .-> Telegram
+    Notif_Service -. "Alert Cadangan HTTP Gateway" .-> WhatsApp
+    N6 -. "Kirim Alert via n8n (Redundan)" .-> Slack
     N6 -. "Kirim Alert via n8n (Redundan)" .-> Telegram
-    N6 -. "Kirim Alert via n8n (Redundan)" .-> WhatsApp
 
     N8 -- "Respon Terformat + Kartu Tiket Visual" --> Web
 ```
@@ -149,7 +151,7 @@ flowchart TD
     %% Cabang Tiket Kendala
     Check_Ticket -- "Ya (Laporan Kendala)" --> Gen_Ticket["[Generate Ticket Number]<br/>Format: TCK-YYYYMMDD-XXXX<br/>Ekstrak: feature_name, category, urgency, desc"]
     Gen_Ticket --> Save_Ticket_DB["[POST /api/v1/tickets]<br/>Simpan ke tabel terisolasi chatbot_tickets"]
-    Save_Ticket_DB --> Dispatch_Alerts["[ChatbotNotificationService / n8n]<br/>Kirim Notifikasi ke Telegram Bot Tim Internal<br/>Kirim Pesan ke WhatsApp Tim Internal"]
+    Save_Ticket_DB --> Dispatch_Alerts["[ChatbotNotificationService / n8n]<br/>Kirim Notifikasi Terstruktur ke Slack Channel Tim Internal (Block Kit)<br/>(Opsional: Telegram Bot / WhatsApp Tim Internal)"]
     Dispatch_Alerts --> Format_Ticket_Card["[Format Visual Ticket Card]<br/>Buat komponen HTML kartu tiket dengan status OPEN & tombol copy"]
     
     %% Cabang Bisnis Biasa
@@ -198,13 +200,14 @@ flowchart LR
     %% Percabangan Penanganan Tiket Paralel
     N7 --> T1["11. Is Ticket Report?<br/>IF node (is_ticket_report == true)"]
     T1 -- "TRUE" --> T2["12. Save Ticket to Backend DB<br/>HTTP POST /api/v1/tickets"]
-    T2 --> T3["13. Send Telegram Alert<br/>HTTP POST api.telegram.org/bot..."]
-    T3 --> T4["14. Send WhatsApp Alert<br/>HTTP POST /api/whatsapp/send"]
+    T2 --> T3["13. Send Slack Alert (Block Kit)<br/>HTTP POST Slack Webhook"]
+    T3 --> T4["14. Send Telegram Alert (Optional)<br/>HTTP POST api.telegram.org/bot..."]
+    T4 --> T5["15. Send WhatsApp Alert (Optional)<br/>HTTP POST /api/whatsapp/send"]
 ```
 
 > 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #01: CANVAS WORKFLOW n8n AKTIF]**
 > - **Kategori Bukti:** Tangkapan Layar UI n8n Web Editor
-> - **Deskripsi:** Tangkapan layar antarmuka visual canvas workflow n8n yang aktif (`http://localhost:5678`) menunjukkan alur node lengkap dari Ingress hingga Telegram/WhatsApp alert.
+> - **Deskripsi:** Tangkapan layar antarmuka visual canvas workflow n8n yang aktif (`http://localhost:5678`) menunjukkan alur node lengkap dari Ingress, Gemini Parser, hingga pengiriman notifikasi Slack (Block Kit)/Telegram/WhatsApp.
 > - **Petunjuk:** Tempel gambar screenshot canvas n8n di bawah ini:
 >
 > ```markdown
@@ -222,7 +225,7 @@ flowchart LR
 | **Kepatuhan Privasi (UU PDP No. 27/2022)** | **Sangat Berisiko Tinggi**: Seluruh catatan transaksi, data pribadi tabel, dan dokumen diunggah langsung ke server pihak ketiga cloud AI. | **Sangat Aman (100% Zero-Leakage)**: Data PII disaring di 3 perimeter (klien, n8n, backend). AI hanya melihat token yang telah disamarkan. |
 | **Risiko Halusinasi Angka & Transaksi** | **Tinggi**: LLM kerap salah menghitung aggregasi angka, tanggal, atau nilai saldo akibat sifat stokastik teks generatif. | **Nol Mutlak (0%)**: Angka, status saldo, dan rincian transaksi ditarik secara deterministik via SQL/API backend yang teruji. |
 | **Konsumsi Token per Permintaan** | **Tinggi (Boros)**: 2.500 – 10.000 token per kueri karena menyuntikkan potongan dokumen/tabel database ke prompt. | **Sangat Rendah (Efisien)**: ~150 – 250 token per kueri (hanya prompt instruksi semantik dan riwayat ringkas tersanitasi). |
-| **Manajemen Insiden / Keluhan Pengguna** | **Pasif**: Pengguna hanya mendapat jawaban teks biasa tanpa tindak lanjut ke tim manusia. | **Proaktif & Terintegrasi**: Otomatis mendeteksi keluhan, menerbitkan tiket resmi, dan men-dispatch alert instan ke Telegram/WA tim internal. |
+| **Manajemen Insiden / Keluhan Pengguna** | **Pasif**: Pengguna hanya mendapat jawaban teks biasa tanpa tindak lanjut ke tim manusia. | **Proaktif & Terintegrasi**: Otomatis mendeteksi keluhan, menerbitkan tiket resmi, dan men-dispatch alert instan yang tertata rapi ke Slack channel (Block Kit) serta opsi redundansi Telegram/WA. |
 | **Keberlanjutan Konteks Multi-Turn** | Bergantung pada penyimpanan prompt utuh yang rawan kebocoran data sensitif dari sesi sebelumnya. | Memori terstruktur bebas PII; LLM hanya menyelesaikan referensi kata ganti (*anaphora resolution*). |
 | **Kecepatan Respons (Latency TTFT)** | Lambat (1.500ms – 4.500ms karena payload prompt yang membengkak). | Sangat Cepat (400ms – 850ms Time-To-First-Token). |
 
@@ -239,14 +242,21 @@ flowchart LR
 
 ---
 
-### 3.3. Mekanisme Notifikasi Insiden: Telegram Bot & WhatsApp API vs Email Tradisional
+### 3.3. Mekanisme Notifikasi Insiden: Slack Channel (Block Kit) vs Telegram Bot vs WhatsApp vs Email
 
-| Parameter | Telegram Bot & WhatsApp Gateway Realtime | Sistem Tiket Email Konvensional |
-| :--- | :--- | :--- |
-| **Kecepatan Penerimaan Notifikasi (Alert Latency)** | **Instan (< 2 detik)** langsung berdering di smartphone staf teknis/support. | Lambat (5 – 30 menit), rawan tertumpuk di folder spam atau promosi. |
-| **Tingkat Responsivitas Tim (MTTA)** | **Tinggi**: Format ringkas dengan tag urgensi memungkinkan triase cepat saat itu juga. | Rendah: Menunggu jadwal pengecekan inbox oleh staf. |
-| **Interaktivitas & Verifikasi** | Mudah diteruskan ke grup tim teknis dengan tautan langsung ke log/sesi obrolan. | Perlu membuka dashboard helpdesk eksternal yang lambat dimuat. |
-| **Biaya Pengoperasian Notifikasi** | **Gratis** (Telegram Bot API resmi gratis tanpa batasan; WhatsApp via API lokal/gateway terjangkau). | Membutuhkan biaya langganan SMTP SaaS (SendGrid/Mailgun) atau software helpdesk mahal. |
+Kebutuhan operasional tim teknis menuntut pelaporan insiden yang **tertata rapi, mudah ditriase, dan tidak mengacaukan alur obrolan umum**. Dibandingkan Telegram atau email, **Slack** memberikan keunggulan arsitektural yang signifikan:
+
+1. **Struktur Visual Slack Block Kit**: Setiap tiket dikirimkan dengan *attachment sidebar* berwarna sesuai keparahan (`#e11d48` Merah/Critical, `#ea580c` Oranye/High, `#eab308` Kuning/Medium, `#2563eb` Biru/Low) serta *section fields* 2-kolom yang memisahkan nomor tiket, nama pelapor, kategori kendala, nama fitur, dan stempel waktu.
+2. **Diskusi Insiden Berbasis Thread (*Zero Clutter*)**: Tim engineer dapat langsung menekan tombol *Reply in thread* pada notifikasi tiket Slack untuk berkoordinasi, menempelkan log error, atau mengubah status, tanpa menenggelamkan tiket-tiket lain di channel utama.
+3. **Multi-Channel Fallback**: Slack bertindak sebagai kanal komando utama di desktop kantor, sedangkan Telegram dan WhatsApp tetap dapat diaktifkan sebagai pengingat darurat bagi staf yang sedang bertugas di lapangan.
+
+| Parameter Evaluasi | Slack Channel (Block Kit) <br/>**(Rekomendasi Utama)** | Telegram Bot API <br/>**(Alternatif Instan)** | WhatsApp Gateway <br/>**(Notifikasi Personal)** | Email Helpdesk Konvensional |
+| :--- | :--- | :--- | :--- | :--- |
+| **Kerapian & Struktur Pesan** | **Sangat Rapi (Block Kit)**: Field 2-kolom, batas pembagi visual, dan indikator warna urgensi. | Cukup Rapi: Menggunakan Markdown teks biasa dan emoji. | Terbatas: Teks tebal/miring standar tanpa komponen kartu visual. | Rapi namun berformat dokumen statis panjang. |
+| **Kolaborasi & Koordinasi Tim** | **Sangat Superior**: Diskusi terisolasi di dalam *thread* per tiket; channel utama tetap bersih. | Kurang: Balasan di grup Telegram sering bercampur aduk jika banyak isu bersamaan. | Tidak Ada: Model chat 1-ke-1 atau grup WA yang cepat tertumpuk chat lain. | Melalui *email thread/reply*, lambat dan rawan terpecah. |
+| **Kecepatan Notifikasi (Latency)** | **Realtime (< 2 detik)** via webhook HTTPS langsung. | Realtime (< 2 detik) via Bot API. | Realtime (< 3 detik) via HTTP API. | Lambat (5 – 30 menit), berisiko masuk tab spam/promosi. |
+| **Kemudahan Integrasi Webhook** | **Sangat Mudah**: Cukup pasang 1 URL Incoming Webhook tanpa setup bot kompleks. | Mudah: Perlu buat bot via @BotFather dan cari Chat ID via bot helper. | Menengah: Membutuhkan registrasi token vendor pihak ketiga. | Rumit: Konfigurasi SMTP, DKIM, SPF, dan reverse DNS. |
+| **Biaya Operasional** | **Gratis** (sudah termasuk dalam fitur workspace standar Slack). | **Gratis** (Telegram Bot API resmi tanpa kuota biaya). | Berbayar per pesan / langganan bulanan gateway. | Biaya langganan SaaS SMTP bulanan (SendGrid, Mailgun). |
 
 ---
 
@@ -256,8 +266,8 @@ flowchart LR
    Dengan menempatkan model AI murni sebagai *Intent & Entity Parser*, LLM pihak ketiga tidak pernah memiliki akses ke basis data transaksi pelanggan asli, saldo, maupun identitas pemohon. Seluruh penyandingan data dieksekusi secara deterministik di backend lokal.
 2. **Pemisahan Peran Tegas (*Separation of Concerns*):**  
    - **Frontend Widget:** Menangani interaksi UI responsif, sapaan personal, drawer lapor masalah, dan filtering preventif awal.
-   - **n8n Orchestrator:** Gerbang komunikasi, sanitasi PII terpusat, jembatan semantik AI, dan router notifikasi paralel.
-   - **Core Backend Laravel:** Otoritas tunggal logika bisnis, persistensi basis data terisolasi, API manifest kapabilitas, dan dispatcher Telegram/WhatsApp.
+   - **n8n Orchestrator:** Gerbang komunikasi, sanitasi PII terpusat, jembatan semantik AI, dan router notifikasi Slack / Telegram paralel.
+   - **Core Backend Laravel:** Otoritas tunggal logika bisnis, persistensi basis data terisolasi, API manifest kapabilitas, dan dispatcher notifikasi multi-channel (Slack, Telegram, WhatsApp).
 3. **Ketahanan Operasional & Ketersediaan Tinggi (*High Availability*):**  
    Penggunaan *Gemini API Key Pool* dengan rotasi *Round-Robin* dan *Auto-Failover* mencegah kegagalan sistem saat satu kunci API mencapai kuota harian atau *Rate Limit (HTTP 429)*.
 
@@ -552,8 +562,9 @@ sequenceDiagram
     participant Gemini as Gemini Intent Parser
     participant Backend as Laravel Backend Core
     participant DB as Isolated DB (chatbot_tickets)
-    participant Telegram as Telegram Bot Tim Internal
-    participant WhatsApp as WhatsApp API Gateway
+    participant Slack as Slack Channel Tim Internal (#customer-tickets)
+    participant Telegram as Telegram Bot (Opsional)
+    participant WhatsApp as WhatsApp API Gateway (Opsional)
 
     Customer->>UI: Klik '🚨 Lapor Kendala' atau ketik: "Min, fitur transaksi error"
     UI->>n8n: POST /webhook/chat-entry (user_id, user_name, message)
@@ -566,11 +577,12 @@ sequenceDiagram
     par Simpan ke DB Terisolasi & Notifikasi Multi-Channel
         n8n->>Backend: POST /api/v1/tickets (payload tiket)
         Backend->>DB: INSERT INTO chatbot_tickets (status: open)
-        Backend->>Telegram: sendMessage (Markdown Alert + Urgent Emojis)
-        Backend->>WhatsApp: POST /send (Pesan Teks Terformat)
+        Backend->>Slack: POST Webhook (Block Kit Layout + Urgency Attachment)
+        Backend-->>Telegram: (Opsional) sendMessage
+        Backend-->>WhatsApp: (Opsional) POST /send
     and Redundansi via n8n (Fail-Safe)
-        n8n->>Telegram: Direct Bot API sendMessage
-        n8n->>WhatsApp: Direct Gateway Webhook
+        n8n->>Slack: Direct Webhook POST (Block Kit)
+        n8n-->>Telegram: (Opsional) Direct Bot API
     end
 
     n8n-->>UI: Kembalikan respon + ticket_data (nomor, fitur, urgensi)
@@ -596,7 +608,9 @@ CREATE TABLE chatbot_tickets (
     urgency VARCHAR(20) DEFAULT 'tinggi',          -- rendah, sedang, tinggi, darurat
     status VARCHAR(30) DEFAULT 'open',             -- open, investigating, in_progress, resolved, closed
     channel VARCHAR(50) DEFAULT 'web',
-    notified_channels JSONB NULL,                  -- {"telegram": true, "whatsapp": false}
+    jira_key VARCHAR(50) NULL,                     -- Contoh: SUP-12 (Jira Service Desk Issue Key)
+    jira_url VARCHAR(255) NULL,                    -- Contoh: https://imtekservice.atlassian.net/browse/SUP-12
+    notified_channels JSONB NULL,                  -- {"slack": true, "telegram": false, "whatsapp": false}
     metadata JSONB NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
@@ -681,8 +695,8 @@ class TicketReportController extends Controller
             'updated_at'      => now(),
         ];
 
-        // 1. Dispatch notifikasi ke Telegram & WhatsApp
-        $notificationStatus = ['telegram' => false, 'whatsapp' => false];
+        // 1. Dispatch notifikasi ke Slack (Prioritas) serta Telegram & WhatsApp (Opsional)
+        $notificationStatus = ['slack' => false, 'telegram' => false, 'whatsapp' => false];
         try {
             $notificationStatus = ChatbotNotificationService::notifyAll($ticketData);
         } catch (\Throwable $e) {
@@ -690,6 +704,7 @@ class TicketReportController extends Controller
         }
 
         $ticketData['notified_channels'] = json_encode([
+            'slack'    => $notificationStatus['slack'] ?? false,
             'telegram' => $notificationStatus['telegram'] ?? false,
             'whatsapp' => $notificationStatus['whatsapp'] ?? false,
         ]);
@@ -709,7 +724,7 @@ class TicketReportController extends Controller
 
 ---
 
-### 7.4. Implementasi Layanan Notifikasi Telegram & WhatsApp (`ChatbotNotificationService.php`)
+### 7.4. Implementasi Layanan Notifikasi Multi-Channel: Slack, Telegram & WhatsApp (`ChatbotNotificationService.php`)
 
 ```php
 <?php
@@ -721,11 +736,112 @@ use Illuminate\Support\Facades\Log;
 
 class ChatbotNotificationService
 {
+    /**
+     * Mengirim notifikasi tiket gangguan ke Slack Channel Tim Internal.
+     * Menggunakan Slack Incoming Webhook dengan layout Block Kit yang sangat rapi dan tertata.
+     */
+    public static function sendSlackTicketAlert(array $ticket): array
+    {
+        $webhookUrl = config('chatbot.notifications.slack.webhook_url', env('SLACK_WEBHOOK_URL', ''));
+        $channel    = config('chatbot.notifications.slack.channel', env('SLACK_CHANNEL', '#customer-tickets'));
+        $enabled    = config('chatbot.notifications.slack.enabled', env('SLACK_NOTIFICATIONS_ENABLED', true));
+
+        if (!$enabled) {
+            return ['success' => false, 'message' => 'Notifikasi Slack dinonaktifkan'];
+        }
+
+        if (empty($webhookUrl)) {
+            Log::info('[ChatbotNotificationService] Slack webhook_url belum disetel di .env. Notifikasi di-skip.');
+            return ['success' => false, 'message' => 'Slack webhook URL tidak disetel'];
+        }
+
+        $ticketNumber = $ticket['ticket_number'] ?? 'TCK-UNKNOWN';
+        $userId       = $ticket['user_id'] ?? 'guest';
+        $userName     = !empty($ticket['user_name']) ? " ({$ticket['user_name']})" : "";
+        $category     = self::formatCategory($ticket['category'] ?? 'fitur_tidak_dapat_diakses');
+        $featureName  = $ticket['feature_name'] ?? 'Fitur Sistem';
+        $description  = $ticket['description'] ?? 'Tidak ada detail';
+        $urgency      = strtoupper($ticket['urgency'] ?? 'TINGGI');
+        $createdAt    = date('Y-m-d H:i:s') . ' WIB';
+
+        // Penentuan warna border bar & emoji urgensi Slack Block Kit
+        $urgencyEmoji = '⚠️';
+        $barColor     = '#ea580c'; // default orange (tinggi)
+        if ($urgency === 'DARURAT' || $urgency === 'CRITICAL') {
+            $urgencyEmoji = '🔥';
+            $barColor     = '#e11d48'; // red
+        } elseif ($urgency === 'TINGGI' || $urgency === 'HIGH') {
+            $urgencyEmoji = '🚨';
+            $barColor     = '#ea580c'; // orange
+        } elseif ($urgency === 'SEDANG' || $urgency === 'MEDIUM') {
+            $urgencyEmoji = '⚡';
+            $barColor     = '#eab308'; // yellow
+        } else {
+            $barColor     = '#2563eb'; // blue
+        }
+
+        // Susun payload Block Kit Slack yang rapi, 2-kolom, & terstruktur
+        $payload = [
+            'channel' => $channel,
+            'text'    => "🚨 [TIKET GANGGUAN BARU] #{$ticketNumber} - Fitur: {$featureName} ({$urgency})",
+            'attachments' => [
+                [
+                    'color'  => $barColor,
+                    'blocks' => [
+                        [
+                            'type' => 'header',
+                            'text' => [
+                                'type'  => 'plain_text',
+                                'text'  => '🚨 Tiket Gangguan Baru dari Pelanggan',
+                                'emoji' => true
+                            ]
+                        ],
+                        [
+                            'type'   => 'section',
+                            'fields' => [
+                                ['type' => 'mrkdwn', 'text' => "*🎫 No. Tiket:*\n`#{$ticketNumber}`"],
+                                ['type' => 'mrkdwn', 'text' => "*👤 Pelapor:*\n`{$userId}`{$userName}"],
+                                ['type' => 'mrkdwn', 'text' => "*📋 Kategori:*\n{$category}"],
+                                ['type' => 'mrkdwn', 'text' => "*🛠 Fitur Terkendala:*\n*{$featureName}*"],
+                                ['type' => 'mrkdwn', 'text' => "*{$urgencyEmoji} Urgensi:*\n*{$urgency}*"],
+                                ['type' => 'mrkdwn', 'text' => "*🕒 Waktu Laporan:*\n{$createdAt}"],
+                            ]
+                        ],
+                        [
+                            'type' => 'section',
+                            'text' => [
+                                'type' => 'mrkdwn',
+                                'text' => "*📝 Detail Kendala:*\n>{$description}"
+                            ]
+                        ],
+                        ['type' => 'divider'],
+                        [
+                            'type' => 'context',
+                            'elements' => [
+                                [
+                                    'type' => 'mrkdwn',
+                                    'text' => "💬 *ID Percakapan*: `{$ticket['conversation_id']}` | 💡 _Balas via *thread* di pesan ini untuk berdiskusi internal._"
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        try {
+            $response = Http::timeout(10)->post($webhookUrl, $payload);
+            return ['success' => $response->successful(), 'status' => $response->status()];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
     public static function sendTelegramTicketAlert(array $ticket): array
     {
         $botToken = config('chatbot.notifications.telegram.bot_token', env('TELEGRAM_BOT_TOKEN', ''));
         $chatId   = config('chatbot.notifications.telegram.chat_id', env('TELEGRAM_CHAT_ID', ''));
-        $enabled  = config('chatbot.notifications.telegram.enabled', env('TELEGRAM_NOTIFICATIONS_ENABLED', true));
+        $enabled  = config('chatbot.notifications.telegram.enabled', env('TELEGRAM_NOTIFICATIONS_ENABLED', false));
 
         if (!$enabled || empty($botToken) || empty($chatId)) {
             return ['success' => false, 'message' => 'Telegram dinonaktifkan atau credentials belum disetel'];
@@ -734,25 +850,12 @@ class ChatbotNotificationService
         $ticketNumber = $ticket['ticket_number'] ?? 'TCK-UNKNOWN';
         $userName     = !empty($ticket['user_name']) ? " ({$ticket['user_name']})" : "";
         $urgency      = strtoupper($ticket['urgency'] ?? 'TINGGI');
-        $urgencyEmoji = match ($urgency) {
-            'DARURAT', 'CRITICAL' => '🔥',
-            'TINGGI', 'HIGH'      => '🚨',
-            'SEDANG', 'MEDIUM'    => '⚡',
-            default               => '⚠️',
-        };
 
         $msg  = "🚨 *TIKET GANGGUAN BARU DARI PELANGGAN*\n";
-        $msg .= "━━━━━━━━━━━━━━━━━━━━━━\n";
         $msg .= "🎫 *Nomor Tiket*: `{$ticketNumber}`\n";
         $msg .= "👤 *Pelapor*: `{$ticket['user_id']}`{$userName}\n";
-        $msg .= "📋 *Kategori*: {$ticket['category']}\n";
         $msg .= "🛠 *Fitur Terkendala*: *{$ticket['feature_name']}*\n";
-        $msg .= "{$urgencyEmoji} *Tingkat Urgensi*: *{$urgency}*\n\n";
-        $msg .= "📝 *Deskripsi Kendala*:\n\"{$ticket['description']}\"\n\n";
-        $msg .= "💬 *ID Percakapan*: `{$ticket['conversation_id']}`\n";
-        $msg .= "🕒 *Waktu Laporan*: " . date('Y-m-d H:i:s') . " WIB\n";
-        $msg .= "━━━━━━━━━━━━━━━━━━━━━━\n";
-        $msg .= "👉 _Mohon tim internal segera memeriksa dan menindaklanjuti kendala ini._";
+        $msg .= "📝 *Deskripsi*: \"{$ticket['description']}\"\n";
 
         try {
             $response = Http::timeout(10)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
@@ -760,7 +863,6 @@ class ChatbotNotificationService
                 'text'       => $msg,
                 'parse_mode' => 'Markdown',
             ]);
-
             return ['success' => $response->successful(), 'status' => $response->status()];
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => $e->getMessage()];
@@ -778,26 +880,18 @@ class ChatbotNotificationService
             return ['success' => false, 'message' => 'WhatsApp dinonaktifkan atau URL belum disetel'];
         }
 
-        $text = "*[TIKET GANGGUAN SISTEM BARU]*\n\n"
-              . "*No. Tiket*: {$ticket['ticket_number']}\n"
-              . "*User*: {$ticket['user_id']}\n"
-              . "*Fitur Terkendala*: {$ticket['feature_name']}\n"
-              . "*Urgensi*: " . strtoupper($ticket['urgency']) . "\n\n"
-              . "*Detail*:\n{$ticket['description']}\n\n"
-              . "_Segera tindak lanjuti keluhan pelanggan ini._";
+        $text = "*[TIKET GANGGUAN SISTEM BARU]*\n\n*No. Tiket*: {$ticket['ticket_number']}\n*User*: {$ticket['user_id']}\n*Fitur*: {$ticket['feature_name']}\n*Detail*:\n{$ticket['description']}";
 
         try {
             $headers = ['Content-Type' => 'application/json'];
             if (!empty($apiKey)) {
                 $headers['Authorization'] = "Bearer {$apiKey}";
             }
-
             $response = Http::withHeaders($headers)->timeout(10)->post($apiUrl, [
                 'target'        => $target,
                 'message'       => $text,
                 'ticket_number' => $ticket['ticket_number'],
             ]);
-
             return ['success' => $response->successful(), 'status' => $response->status()];
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => $e->getMessage()];
@@ -807,6 +901,7 @@ class ChatbotNotificationService
     public static function notifyAll(array $ticket): array
     {
         return [
+            'slack'    => self::sendSlackTicketAlert($ticket)['success'] ?? false,
             'telegram' => self::sendTelegramTicketAlert($ticket)['success'] ?? false,
             'whatsapp' => self::sendWhatsAppTicketAlert($ticket)['success'] ?? false,
         ];
@@ -814,18 +909,29 @@ class ChatbotNotificationService
 }
 ```
 
-> 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #08: PESAN ALERT MASUK DI APLIKASI TELEGRAM]**
-> - **Kategori Bukti:** Tangkapan Layar Aplikasi Telegram (Desktop / Mobile)
-> - **Deskripsi:** Tangkapan layar pesan alert tiket gangguan yang masuk secara instan di grup atau akun Telegram tim internal dengan formatting Markdown rapi, nomor tiket, detail fitur, dan tingkat urgensi.
-> - **Petunjuk:** Tempel screenshot pesan Telegram di bawah ini:
+> 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #08: PESAN ALERT MASUK DI CHANNEL SLACK (BLOCK KIT)]**
+> - **Kategori Bukti:** Tangkapan Layar Aplikasi Slack (Desktop / Mobile / Web)
+> - **Deskripsi:** Tangkapan layar pesan alert tiket gangguan yang masuk secara instan di channel Slack tim internal (`#customer-tickets`) dengan tata letak visual Slack Block Kit yang sangat tertata rapi, indikator warna tingkat urgensi, field metadata 2-kolom, deskripsi masalah, serta thread diskusi.
+> - **Petunjuk:** Tempel screenshot pesan Slack di bawah ini:
 >
 > ```markdown
-> ![Evidence 08 - Telegram Alert Message](evidence/08_telegram_ticket_alert.png)
+> ![Evidence 08 - Slack Alert Message](evidence/08_slack_ticket_alert.png)
 > ```
 
 ---
 
-> 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #09: PESAN ALERT MASUK DI APLIKASI WHATSAPP]**
+> 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #08B: PESAN ALERT MASUK DI APLIKASI TELEGRAM (ALTERNATIF)]**
+> - **Kategori Bukti:** Tangkapan Layar Aplikasi Telegram (Desktop / Mobile)
+> - **Deskripsi:** Tangkapan layar pesan alert tiket gangguan yang diterima via Telegram Bot pada grup/channel tim internal sebagai saluran alternatif/cadangan.
+> - **Petunjuk:** Tempel screenshot pesan Telegram di bawah ini:
+>
+> ```markdown
+> ![Evidence 08b - Telegram Alert Message](evidence/08b_telegram_ticket_alert.png)
+> ```
+
+---
+
+> 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #09: PESAN ALERT MASUK DI APLIKASI WHATSAPP (OPSIONAL)]**
 > - **Kategori Bukti:** Tangkapan Layar Aplikasi WhatsApp (Desktop / Mobile)
 > - **Deskripsi:** Tangkapan layar pesan alert tiket yang diterima melalui WhatsApp Gateway pada nomor ponsel petugas teknis/support internal.
 > - **Petunjuk:** Tempel screenshot pesan WhatsApp di bawah ini:
@@ -872,7 +978,7 @@ class ChatbotNotificationService
      - Nomor Tiket `#TCK-YYYYMMDD-XXXX`
      - Badge Status Berdenyut: `🔴 OPEN`
      - Label Fitur & Tag Urgensi
-     - Teks Alert: *"Notifikasi tiket telah diteruskan ke Tim Internal via Telegram & WhatsApp"*
+     - Teks Alert: *"Notifikasi tiket telah diteruskan ke Tim Internal via Channel Slack (serta opsi Telegram/WhatsApp)"*
      - Tombol Interaktif: **📋 Salin Nomor Tiket** (dilengkapi animasi feedback *Berhasil Disalin!*).
 
 > 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #12: KARTU TIKET VISUAL INTERAKTIF DI CHAT WIDGET]**
@@ -1028,7 +1134,9 @@ services:
       - GEMINI_API_KEYS=${GEMINI_API_KEYS}
       - BACKEND_BASE_URL=${BACKEND_BASE_URL}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
-      # Integrasi Notifikasi Tiket (Telegram & WhatsApp)
+      # Integrasi Notifikasi Tiket (Slack Prioritas, Telegram & WhatsApp Opsional)
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - SLACK_CHANNEL=${SLACK_CHANNEL}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - WHATSAPP_API_URL=${WHATSAPP_API_URL}
@@ -1065,7 +1173,10 @@ volumes:
 | `INTERNAL_API_KEY` | Token otentikasi internal antara n8n dan Laravel backend. | **Kritis** (Wajib) |
 | `DB_CHATBOT_CONNECTION` | Nama koneksi DB terisolasi (misal: `sqlite` atau `chatbot_db`). | Opsional (Isolasi Total) |
 | `CHATBOT_TABLE_TICKETS` | Nama tabel tiket (standar: `chatbot_tickets`). | Standar |
-| `TELEGRAM_NOTIFICATIONS_ENABLED` | `true` untuk mengaktifkan alert bot Telegram tim internal. | Disarankan |
+| `SLACK_NOTIFICATIONS_ENABLED` | `true` untuk mengaktifkan alert ke channel Slack tim internal. | **Disarankan (Rekomendasi Utama)** |
+| `SLACK_WEBHOOK_URL` | URL Incoming Webhook resmi dari aplikasi Slack (`https://hooks.slack.com/...`). | Wajib jika Slack aktif |
+| `SLACK_CHANNEL` | Nama channel tujuan notifikasi tiket (misal: `#customer-tickets`). | Opsional (`#customer-tickets`) |
+| `TELEGRAM_NOTIFICATIONS_ENABLED` | `true` jika ingin mengaktifkan notifikasi cadangan ke bot Telegram. | Opsional (Cadangan) |
 | `TELEGRAM_BOT_TOKEN` | Token bot resmi dari Telegram [@BotFather](https://t.me/botfather). | Wajib jika Telegram aktif |
 | `TELEGRAM_CHAT_ID` | ID grup/chat tim internal dari [@userinfobot](https://t.me/userinfobot). | Wajib jika Telegram aktif |
 | `WHATSAPP_NOTIFICATIONS_ENABLED`| `true` jika menggunakan gateway WhatsApp. | Opsional |
@@ -1088,6 +1199,7 @@ volumes:
 | Gejala Masalah / Pesan Error | Analisis Akar Masalah (Root Cause) | Prosedur Solusi Teknis Pemulihan |
 | :--- | :--- | :--- |
 | `connect ECONNREFUSED 127.0.0.1:8000` dari kontainer n8n | n8n berjalan di dalam kontainer Docker dan tidak dapat mengakses loopback `127.0.0.1` milik host. | Ganti `BACKEND_BASE_URL` menjadi `http://host.docker.internal:8000` (atau port 8088), dan pastikan `extra_hosts` sudah terpasang di `docker-compose.yml`. |
+| Tiket terbuat di DB tetapi Slack channel tidak menerima alert | `SLACK_WEBHOOK_URL` belum disetel di `.env`, URL webhook salah/kedaluwarsa, atau aplikasi webhook belum diberi izin ke channel. | 1. Periksa nilai `SLACK_WEBHOOK_URL` di `.env`.<br/>2. Uji cURL langsung: `curl -X POST -H 'Content-type: application/json' --data '{"text":"Test Alert"}' <SLACK_WEBHOOK_URL>`.<br/>3. Pastikan webhook app memiliki hak akses ke channel tujuan (contoh: `#customer-tickets`). |
 | Tiket terbuat di DB tetapi Telegram tidak menerima pesan | `TELEGRAM_BOT_TOKEN` atau `TELEGRAM_CHAT_ID` belum diisi di `.env`, atau bot belum ditambahkan sebagai anggota grup Telegram. | 1. Verifikasi kredensial di `.env`.<br/>2. Pastikan bot sudah diundang ke grup dan dijadikan admin/diberi izin kirim pesan.<br/>3. Uji manual via cURL: `curl -s -X POST https://api.telegram.org/bot<TOKEN>/sendMessage -d chat_id=<CHAT_ID> -d text="Test Alert"`. |
 | Data Sensitif (KTP/No HP) lolos ke respons AI | Regex sisi klien terlewati dan input pengguna menggunakan variasi tanda baca tak biasa. | Periksa `PiiSanitizer.php` dan node `Normalize Input`. Pastikan regex toleran spasi dan strip `\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b\|\b\d{16}\b` aktif. |
 | Status Tiket Gagal Disimpan (*Database Error*) | Tabel `chatbot_tickets` belum dimigrasikan. | Jalankan migrasi: `php artisan migrate --path=database/migrations/2025_01_01_000002_create_chatbot_tickets_table.php`. |
@@ -1097,4 +1209,4 @@ volumes:
 ---
 
 **Disetujui oleh:** Lead Enterprise Architect & Chief Information Security Officer (CISO)  
-**Status Revisi:** v2.0 - Multi-Turn Context, Anti-PII Shield, Telegram/WhatsApp Incident Ticketing & Token Isolation Architecture Verified.
+**Status Revisi:** v2.0 - Multi-Turn Context, Anti-PII Shield, Slack/Multi-Channel Incident Ticketing & Token Isolation Architecture Verified.

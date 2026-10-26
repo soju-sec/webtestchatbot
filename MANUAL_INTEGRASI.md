@@ -301,9 +301,12 @@ Ketika pengguna membuka bubble chat pertama kali, widget secara otomatis menyapa
 
 ---
 
-## 🚨 11. Fitur Laporan Kendala / Gangguan Pelanggan & Tiket Tim Internal (Telegram / WhatsApp)
+## 🚨 11. Fitur Laporan Kendala Pelanggan & Tiket Tim Internal (Slack / Telegram / WhatsApp)
 
-Fitur ini memungkinkan pelanggan melaporkan masalah sistem (misalnya: **fitur tidak dapat diakses**, **tombol error 500**, **halaman checkout gagal**, atau **kendala transaksi**).
+Fitur ini memungkinkan pelanggan melaporkan masalah sistem (misalnya: **fitur tidak dapat diakses**, **tombol error 500**, **halaman checkout gagal**, atau **kendala transaksi**) baik melalui percakapan chat maupun formulir kendala (*Issue Drawer*).
+
+> 💡 **Rekomendasi Utama: Channel Slack**  
+> Slack sangat direkomendasikan dibandingkan aplikasi chat biasa karena memiliki **tampilan yang jauh lebih tertata (Slack Block Kit)**, mendukung pewarnaan urgensi (*Color Sidebar*), dan setiap tiket dapat langsung **didiskusikan di dalam thread** tanpa membuat channel berantakan.
 
 ### 🔄 Alur Kerja Pelaporan & Tiket:
 ```mermaid
@@ -314,8 +317,8 @@ sequenceDiagram
     participant n8n as n8n Orchestrator
     participant Gemini as Gemini AI Intent Parser
     participant DB as Isolated DB (chatbot_tickets)
-    participant Telegram as Telegram Bot Tim Internal
-    participant WhatsApp as WhatsApp Gateway Tim Internal
+    participant Slack as Slack Channel Tim Internal (#customer-tickets)
+    participant Others as Telegram / WhatsApp (Opsional)
 
     User->>Widget: Klik 'Lapor Kendala' atau ketik: "Min, fitur transaksi tidak bisa diakses"
     Widget->>n8n: Kirim pesan tersanitasi ke /webhook/chat-entry
@@ -324,27 +327,38 @@ sequenceDiagram
     n8n->>n8n: Generate nomor tiket: #TCK-YYYYMMDD-XXXX
     par Notifikasi Paralel & Terprogram
         n8n->>DB: Simpan tiket ke tabel chatbot_tickets (/api/v1/tickets)
-        n8n->>Telegram: Kirim Alert Tiket ke Grup/Chat Tim Internal
-        n8n->>WhatsApp: Kirim Pesan Alert ke Nomor/Grup WhatsApp Tim
+        n8n->>Slack: Kirim Alert Tiket Terstruktur via Incoming Webhook (Block Kit)
+        n8n->>Others: Kirim Alert ke Telegram / WhatsApp (jika diaktifkan)
     end
     n8n-->>Widget: Kembalikan respon konfirmasi + Nomor Tiket Resmi
     Widget-->>User: Tampilkan Kartu Tiket Resmi (#TCK-...) dengan status OPEN
 ```
 
-### ⚙️ Konfigurasi Notifikasi Telegram & WhatsApp di `.env`:
+### ⚙️ Konfigurasi Notifikasi di `.env`:
 
-#### 1. Setup Notifikasi Telegram:
-1. Buat bot Telegram baru via [@BotFather](https://t.me/botfather) dan dapatkan `HTTP API Token` (contoh: `123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ`).
-2. Dapatkan ID chat grup atau akun Anda via [@userinfobot](https://t.me/userinfobot) (contoh: `987654321` atau `-1001234567890`).
-3. Tambahkan ke file `.env`:
+#### 1. Setup Notifikasi Slack (Sangat Direkomendasikan):
+1. Buka [Slack API Apps](https://api.slack.com/apps) lalu klik **Create New App** ➔ **From scratch**.
+2. Beri nama aplikasi (misal: `Incident Bot`) dan pilih Workspace Slack tim Anda.
+3. Di bilah menu kiri, pilih **Incoming Webhooks**, lalu ubah toggle menjadi **On**.
+4. Klik tombol **Add New Webhook to Workspace** di bagian bawah, pilih channel tujuan (misal: `#customer-tickets` atau `#dev-alerts`), lalu klik **Allow**.
+5. Salin **Webhook URL** yang dihasilkan (`https://hooks.slack.com/services/T.../B.../...`).
+6. Masukkan ke file `.env`:
+```env
+SLACK_NOTIFICATIONS_ENABLED=true
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR_WORKSPACE_ID/YOUR_BOT_ID/YOUR_WEBHOOK_TOKEN
+SLACK_CHANNEL=#customer-tickets
+```
+
+#### 2. Setup Notifikasi Telegram (Opsional):
+Jika Anda tetap ingin menyalakan alert ke Telegram selain/tanpa Slack:
 ```env
 TELEGRAM_NOTIFICATIONS_ENABLED=true
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ
 TELEGRAM_CHAT_ID=-1001234567890
 ```
 
-#### 2. Setup Notifikasi WhatsApp (Opsional):
-Jika Anda menggunakan gateway WhatsApp (seperti Wablas, Fonnte, Twilio, atau custom webhook):
+#### 3. Setup Notifikasi WhatsApp (Opsional):
+Jika menggunakan gateway WhatsApp (Wablas, Fonnte, Twilio, atau custom webhook):
 ```env
 WHATSAPP_NOTIFICATIONS_ENABLED=true
 WHATSAPP_API_URL=https://api.fonnte.com/send
@@ -352,28 +366,38 @@ WHATSAPP_API_KEY=your_fonnte_token_here
 WHATSAPP_TARGET_NUMBER=08123456789
 ```
 
-### 📋 Format Pesan Alert Tiket yang Diterima Tim Internal (Telegram):
+---
+
+### 📋 Tampilan Pesan Alert di Channel Slack (Block Kit):
+
+Di Slack, pesan akan muncul dalam kartu terstruktur dengan garis samping berwarna sesuai tingkat urgensi:
+
 ```text
-🚨 TIKET GANGGUAN SISTEM BARU
-━━━━━━━━━━━━━━━━━━━━━━
-🎫 Nomor Tiket: TCK-20261021-2084
-👤 Pelapor: USER-BUDI-123 (Budi Pratama)
-📋 Kategori: Fitur Tidak Dapat Diakses
-🛠 Fitur Terkendala: Riwayat Transaksi
-⚠️ Tingkat Urgensi: TINGGI
-
-📝 Deskripsi Masalah:
-"Pengguna mengeluh tombol riwayat transaksi tidak bisa dibuka, hanya memuat (loading) terus menerus."
-
-💬 ID Percakapan: conv-5gj873h
-🕒 Waktu Laporan: 21/10/2026 23:40:00 WIB
-━━━━━━━━━━━━━━━━━━━━━━
-👉 Mohon tim teknis segera memeriksa dan menindaklanjuti kendala ini.
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 🚨 Tiket Gangguan Baru dari Pelanggan                                       │
+│                                                                             │
+│ 🎫 No. Tiket:             👤 Pelapor:                                       │
+│ #TCK-20261022-8F2A        USER-BUDI-123 (Budi Pratama)                      │
+│                                                                             │
+│ 📋 Kategori:              🛠 Fitur Terkendala:                              │
+│ Fitur Tidak Dapat Diakses  Riwayat Transaksi                                 │
+│                                                                             │
+│ ⚡ Urgensi:                🕒 Waktu Laporan:                                 │
+│ TINGGI                    2026-10-22 13:45:00 WIB                           │
+│                                                                             │
+│ 📝 Detail Kendala:                                                          │
+│ > Pengguna mengeluhkan tombol transaksi error dan halaman gagal dimuat.     │
+│                                                                             │
+│ 💬 ID Percakapan: conv-5gj873h | Status: OPEN | Tindak lanjuti pada thread  │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
+*(Warna border: Merah untuk Darurat, Oranye untuk Tinggi, Kuning untuk Sedang, Biru untuk Rendah)*
+
+---
 
 ### 🗄️ Tabel Database Terisolasi: `chatbot_tickets`
-Tabel ini dibuat melalui migrasi `2025_01_01_000002_create_chatbot_tickets_table.php`:
-- `ticket_number`: Nomor unik tiket (misal: `TCK-20261021-9821`)
+Tabel ini dibuat melalui migrasi `2025_01_01_000002_create_chatbot_tickets_table.php` & `2025_01_01_000003_add_jira_fields_to_chatbot_tickets_table.php`:
+- `ticket_number`: Nomor unik tiket (misal: `TCK-20261022-8F2A`)
 - `conversation_id`: Referensi sesi percakapan
 - `user_id`: ID pengguna pelapor
 - `user_name`: Nama pengguna
@@ -382,11 +406,100 @@ Tabel ini dibuat melalui migrasi `2025_01_01_000002_create_chatbot_tickets_table
 - `description`: Detail masalah (bebas dari PII)
 - `urgency`: `rendah`, `sedang`, `tinggi`, `darurat`
 - `status`: `open`, `investigating`, `resolved`, `closed`
-- `notified_channels`: Rekam jejak status pengiriman notifikasi `{"telegram": true, "whatsapp": false}`
+- `channel`: Kanal pelaporan (`web`, `drawer`, `mobile`)
+- `jira_key`: Nomor Issue resmi Jira (misal: `SUP-12`)
+- `jira_url`: Link langsung ke tiket Jira (misal: `https://imtekservice.atlassian.net/browse/SUP-12`)
+- `notified_channels`: Rekam jejak status pengiriman notifikasi `{"slack": true, "telegram": false, "whatsapp": false}`
+- `metadata`: JSON metadata lengkap termasuk respon data Jira Service Management
 
 ### 🔌 Endpoint REST API Tiket Internal (Protected):
-- `POST /api/v1/tickets`: Menerbitkan tiket baru dan memicu notifikasi Telegram/WhatsApp.
+- `POST /api/v1/tickets`: Menerbitkan tiket baru, membuat issue di Jira Service Desk (SUP), dan memicu notifikasi Slack/Telegram/WhatsApp.
 - `GET /api/v1/tickets`: Menampilkan daftar tiket (filter: `status`, `user_id`, `category`).
-- `GET /api/v1/tickets/{ticketNumber}`: Mengambil detail tiket.
+- `GET /api/v1/tickets/{ticketNumber}`: Mengambil detail tiket (termasuk `jira_key` & `jira_url`).
 - `PATCH /api/v1/tickets/{ticketNumber}/status`: Memperbarui status penanganan tiket (`open` ➔ `investigating` ➔ `resolved`).
+- `POST/GET /api/v1/tickets/{ticketNumber}/jira-sync`: Melakukan sinkronisasi status tiket dari Jira Cloud ke database lokal.
+- `POST/GET /api/v1/jira/test-connection`: Menguji status kredensial dan hak akses proyek Jira Service Desk.
 
+---
+
+## 🌐 12. Panduan Integrasi Jira Service Management (Proyek SUP - Atlassian)
+
+Universal Chatbot kini terintegrasi penuh secara bidirectional dengan **Jira Service Management / Jira Service Desk**:
+- **Jira Cloud Instance:** `https://imtekservice.atlassian.net`
+- **Project Key:** `SUP`
+- **Dashboard Proyek:** [https://imtekservice.atlassian.net/jira/servicedesk/projects/SUP/getting-started](https://imtekservice.atlassian.net/jira/servicedesk/projects/SUP/getting-started)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Pelanggan as Pelanggan (Widget Chat / Drawer)
+    participant Backend as Backend Controller (TicketReportController)
+    participant JiraService as Jira Service Management API
+    participant JiraCloud as Atlassian Jira Cloud (Project SUP)
+    participant Slack as Slack Channel (#customer-tickets)
+
+    Pelanggan->>Backend: Laporkan Masalah Sistem (#TCK-...)
+    Backend->>Backend: Sanitasi Anti-PII & Ekstrak Parameter
+    Backend->>JiraService: Dispatch Tiket ke Jira (POST /rest/api/2/issue)
+    JiraService->>JiraCloud: Basic Auth (Email + API Token) ke Project SUP
+    JiraCloud-->>JiraService: Return Issue Key (misal: SUP-14) & URL
+    Backend->>Backend: Simpan SUP-14 ke kolom jira_key & metadata
+    par Paralel Notification
+        Backend->>Slack: Alert Slack (Block Kit + Tombol "Buka di Jira ↗")
+        Backend->>Pelanggan: Kembalikan Nomor Tiket + Badge Link Jira (SUP-14)
+    end
+    Pelanggan-->>Pelanggan: Klik "Lihat di Jira ↗" untuk memantau status
+```
+
+### ⚙️ Langkah Setup & Kredensial Jira:
+
+#### 1. Dapatkan Atlassian API Token (Gratis):
+1. Buka halaman manajemen keamanan Atlassian:  
+   👉 [https://id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
+2. Klik tombol **Create API token**.
+3. Beri label (misalnya: `Universal Chatbot`).
+4. Salin token API yang ditampilkan (token hanya muncul satu kali).
+
+#### 2. Konfigurasi Variabel di `.env`:
+Tambahkan atau sesuaikan baris berikut pada file `.env`:
+```env
+# Integrasi Jira Service Management / Jira Service Desk (Atlassian)
+JIRA_ENABLED=true
+JIRA_HOST=imtekservice.atlassian.net
+JIRA_PROJECT_KEY=SUP
+JIRA_USER_EMAIL=email_atlassian_anda@domain.com
+JIRA_API_TOKEN=ATATT3xFfGF0...your_token_here...
+JIRA_ISSUE_TYPE=Service Request
+```
+
+> [!TIP]
+> Nilai `JIRA_USER_EMAIL` adalah email yang Anda gunakan untuk login ke [https://imtekservice.atlassian.net](https://imtekservice.atlassian.net).  
+> Nilai `JIRA_PROJECT_KEY` telah disetel ke `SUP`.
+
+#### 3. Uji Koneksi & Diagnostik:
+Gunakan script diagnostik mandiri untuk memverifikasi kredensial:
+```bash
+# Cek autentikasi dan ketersediaan Project SUP:
+./check-jira.sh
+
+# Cek sekaligus membuat tiket uji coba di Jira Service Desk:
+./check-jira.sh --create-issue
+```
+
+Atau menggunakan perintah Artisan Laravel:
+```bash
+php artisan chatbot:jira --test
+php artisan chatbot:jira --create-test-issue
+```
+
+#### 4. Fitur-Fitur Jira yang Didukung:
+- **Auto Issue Creation**: Pembuatan otomatis issue/ticket di Jira Service Desk saat customer mengeluh di chat / form drawer.
+- **Urgency Mapping**:
+  - `darurat` / `critical` ➔ Priority: `Highest`
+  - `tinggi` / `high` ➔ Priority: `High`
+  - `sedang` / `medium` ➔ Priority: `Medium`
+  - `rendah` / `low` ➔ Priority: `Low`
+- **Intelligent Issue Type Fallback**: Jika tipe issue yang disetel di `.env` tidak ada pada skema project SUP, sistem otomatis mendeteksi issue type valid yang tersedia dan membuat tiket tanpa throw error.
+- **Clickable Badge in Chat Widget**: Pelanggan mendapatkan kartu tiket interaktif dengan tombol langsung `🌐 Jira Service Desk: SUP-XX ↗`.
+- **Block Kit Integration in Slack**: Alert Slack menyertakan link tiket Jira dan tombol action *Buka di Jira ↗*.
+- **Sync Status Endpoint**: Status penyelesaian issue di Jira dapat disinkronkan kembali ke database lokal melalui endpoint `POST /api/v1/tickets/{ticketNumber}/jira-sync`.

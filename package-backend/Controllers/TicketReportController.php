@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\ChatbotNotificationService;
+use App\Services\JiraService;
 use App\Services\PiiSanitizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class TicketReportController extends Controller
 {
@@ -63,6 +65,8 @@ class TicketReportController extends Controller
         $featureName = !empty($data['feature_name']) ? $data['feature_name'] : 'Fitur Sistem';
         $urgency = !empty($data['urgency']) ? strtolower($data['urgency']) : 'tinggi';
 
+        $metadata = $data['metadata'] ?? [];
+
         $ticketData = [
             'ticket_number'   => $ticketNumber,
             'conversation_id' => $data['conversation_id'] ?? null,
@@ -74,13 +78,37 @@ class TicketReportController extends Controller
             'urgency'         => $urgency,
             'status'          => 'open',
             'channel'         => $data['channel'] ?? 'web',
-            'metadata'        => isset($data['metadata']) ? json_encode($data['metadata']) : null,
             'created_at'      => now(),
             'updated_at'      => now(),
         ];
 
-        // 1. Kirim notifikasi instan ke tim internal (Telegram & WhatsApp)
-        $notificationStatus = ['telegram' => false, 'whatsapp' => false];
+        // 1. Integrasi Otomatis ke Jira Service Management / Jira Service Desk (Proyek SUP)
+        $jiraResult = ['success' => false, 'message' => 'Jira belum dikonfigurasi'];
+        try {
+            if (class_exists(JiraService::class) && JiraService::isConfigured()) {
+                $jiraResult = JiraService::createIssue($ticketData);
+                if (!empty($jiraResult['success'])) {
+                    $ticketData['jira_key'] = $jiraResult['key'] ?? null;
+                    $ticketData['jira_url'] = $jiraResult['url'] ?? null;
+                    $metadata['jira'] = [
+                        'key'        => $jiraResult['key'] ?? null,
+                        'id'         => $jiraResult['id'] ?? null,
+                        'url'        => $jiraResult['url'] ?? null,
+                        'project'    => JiraService::getProjectKey(),
+                        'created_at' => now()->toIso8601String(),
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[TicketReportController] Exception saat integrasi Jira: ' . $e->getMessage());
+            $jiraResult = ['success' => false, 'message' => $e->getMessage()];
+        }
+
+        $ticketData['metadata'] = !empty($metadata) ? json_encode($metadata) : null;
+
+        // 2. Kirim notifikasi instan ke tim internal (Slack, Telegram & WhatsApp)
+        // Notifikasi sudah menyertakan link tiket Jira jika berhasil dibuat!
+        $notificationStatus = ['slack' => false, 'telegram' => false, 'whatsapp' => false];
         try {
             $notificationStatus = ChatbotNotificationService::notifyAll($ticketData);
         } catch (\Throwable $e) {
@@ -88,29 +116,41 @@ class TicketReportController extends Controller
         }
 
         $ticketData['notified_channels'] = json_encode([
+            'slack'    => $notificationStatus['slack'] ?? false,
             'telegram' => $notificationStatus['telegram'] ?? false,
             'whatsapp' => $notificationStatus['whatsapp'] ?? false,
         ]);
 
-        // 2. Simpan tiket ke database terisolasi
+        // 3. Simpan tiket ke database terisolasi
         try {
-            DB::connection($connection)->table($table)->insert($ticketData);
+            // Periksa apakah kolom jira_key / jira_url ada di tabel sebelum insert
+            $insertData = $ticketData;
+            $hasJiraKey = Schema::connection($connection)->hasColumn($table, 'jira_key');
+            if (!$hasJiraKey) {
+                // Hilangkan field agar tidak terjadi error SQL jika migrasi belum dijalankan
+                unset($insertData['jira_key'], $insertData['jira_url']);
+            }
+
+            DB::connection($connection)->table($table)->insert($insertData);
         } catch (\Throwable $e) {
             Log::error('[TicketReportController] Gagal menyimpan tiket ke database: ' . $e->getMessage());
-            // Tetap kembalikan respon sukses jika notifikasi sudah terkirim agar user tidak panik
+            // Tetap kembalikan respon sukses jika Jira / notifikasi sudah terkirim agar user tidak panik
             return response()->json([
                 'status'        => 'partial_success',
                 'ticket_number' => $ticketNumber,
-                'message'       => 'Laporan diterima dan tim internal telah diberitahu, namun pencatatan database mengalami kendala teknis.',
+                'message'       => 'Laporan diterima dan diteruskan ke Jira / tim internal, namun pencatatan database mengalami kendala teknis.',
+                'jira'          => $jiraResult,
                 'error'         => $e->getMessage(),
             ], 200);
         }
 
         return response()->json([
             'status'        => 'success',
-            'message'       => 'Tiket laporan kendala berhasil dibuat dan diteruskan ke tim internal via Telegram/WhatsApp.',
+            'message'       => 'Tiket laporan kendala berhasil dibuat dan diteruskan ke Jira Service Desk & Tim Internal.',
             'ticket'        => [
                 'ticket_number'   => $ticketNumber,
+                'jira_key'        => $ticketData['jira_key'] ?? null,
+                'jira_url'        => $ticketData['jira_url'] ?? null,
                 'conversation_id' => $ticketData['conversation_id'],
                 'user_id'         => $ticketData['user_id'],
                 'category'        => $ticketData['category'],
@@ -120,6 +160,7 @@ class TicketReportController extends Controller
                 'status'          => 'open',
                 'created_at'      => $ticketData['created_at']->toIso8601String(),
             ],
+            'jira'          => $jiraResult,
             'notifications' => $notificationStatus,
         ], 201);
     }
@@ -228,6 +269,89 @@ class TicketReportController extends Controller
             return response()->json([
                 'status'  => 'success',
                 'message' => "Status tiket {$ticketNumber} berhasil diperbarui menjadi {$data['status']}.",
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Menguji koneksi dan status kredensial Jira Service Desk.
+     */
+    public function testJiraConnection(Request $request)
+    {
+        $status = JiraService::testConnection();
+        return response()->json($status, $status['success'] ? 200 : 400);
+    }
+
+    /**
+     * Melakukan sinkronisasi status tiket dari Jira ke database lokal.
+     */
+    public function syncJiraStatus(Request $request, string $ticketNumber)
+    {
+        $connection = $this->getConnection();
+        $table      = $this->getTableName();
+
+        try {
+            $ticket = DB::connection($connection)->table($table)
+                ->where('ticket_number', $ticketNumber)
+                ->first();
+
+            if (!$ticket) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => "Tiket {$ticketNumber} tidak ditemukan."
+                ], 404);
+            }
+
+            // Ambil Jira Key dari record atau metadata
+            $jiraKey = $ticket->jira_key ?? null;
+            if (!$jiraKey && !empty($ticket->metadata)) {
+                $meta = is_string($ticket->metadata) ? json_decode($ticket->metadata, true) : $ticket->metadata;
+                $jiraKey = $meta['jira']['key'] ?? null;
+            }
+
+            if (empty($jiraKey)) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => "Tiket {$ticketNumber} tidak memiliki keterkaitan dengan Jira issue.",
+                ], 400);
+            }
+
+            $jiraIssue = JiraService::getIssue($jiraKey);
+            if (!$jiraIssue['success']) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => "Gagal mengambil data dari Jira: " . ($jiraIssue['message'] ?? 'Unknown error'),
+                ], 502);
+            }
+
+            // Map status Jira ke status sistem
+            $jiraStatusName = strtolower($jiraIssue['status'] ?? '');
+            $newStatus = 'open';
+            if (str_contains($jiraStatusName, 'progress') || str_contains($jiraStatusName, 'investigat')) {
+                $newStatus = 'investigating';
+            } elseif (str_contains($jiraStatusName, 'done') || str_contains($jiraStatusName, 'resolved')) {
+                $newStatus = 'resolved';
+            } elseif (str_contains($jiraStatusName, 'close') || str_contains($jiraStatusName, 'cancel')) {
+                $newStatus = 'closed';
+            }
+
+            DB::connection($connection)->table($table)
+                ->where('ticket_number', $ticketNumber)
+                ->update([
+                    'status'     => $newStatus,
+                    'updated_at' => now(),
+                ]);
+
+            return response()->json([
+                'status'         => 'success',
+                'message'        => "Status tiket {$ticketNumber} disinkronkan dari Jira ({$jiraKey}). Status baru: {$newStatus} (Jira: {$jiraIssue['status']}).",
+                'jira_issue'     => $jiraIssue,
+                'updated_status' => $newStatus,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
