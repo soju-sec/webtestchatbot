@@ -503,3 +503,89 @@ php artisan chatbot:jira --create-test-issue
 - **Clickable Badge in Chat Widget**: Pelanggan mendapatkan kartu tiket interaktif dengan tombol langsung `🌐 Jira Service Desk: SUP-XX ↗`.
 - **Block Kit Integration in Slack**: Alert Slack menyertakan link tiket Jira dan tombol action *Buka di Jira ↗*.
 - **Sync Status Endpoint**: Status penyelesaian issue di Jira dapat disinkronkan kembali ke database lokal melalui endpoint `POST /api/v1/tickets/{ticketNumber}/jira-sync`.
+
+---
+
+## 📚 13. Panduan Automasi SOP Pertanyaan Non-Teknis & Formulir Verifikasi Data (Solusi Masalah Berulang PM / Konsultan)
+
+### 13.1. Mengapa Ini Krusial bagi Project Management & Konsultan TI?
+Dalam delivery proyek aplikasi, PM dan konsultan sering terjebak dalam **3 masalah berulang**:
+1. **Deflection Rate Rendah / FAQ Fatigue:** Tim developer kehabisan sprint capacity karena sering diganggu pertanyaan operasional berulang (tidak bisa login, export loading lama, pembayaran belum masuk).
+2. **Chat Ping-Pong Tanpa Akhir:** Klien hanya melapor *"Datanya salah mas!"* tanpa detail. Konsultan harus bolak-balik bertanya seharian hanya untuk mencari tahu ID transaksi dan menu mana yang bermasalah.
+3. **Shadow Support:** Keluhan klien masuk via chat informal personal, tidak tercatat di Jira, tidak ada SLA, dan audit trail hilang.
+
+Sistem chatbot ini menyelesaikan ketiga masalah tersebut secara tuntas melalui **Automasi SOP Non-Teknis** dan **Guided Verification Form** yang terhubung langsung ke **Jira Service Desk (SUP)**.
+
+---
+
+### 13.2. Lima (5) SOP Standar yang Disediakan Out-of-the-Box
+
+| Kategori Skenario | Trigger Kata Kunci | Respon Cerdas AI & Langkah Praktis | Alur Eskalasi Tiket |
+| :--- | :--- | :--- | :--- |
+| **🔑 Kendala Login & Akun** | *tidak bisa login, lupa password, akun terkunci, gagal masuk* | 1. Cek ejaan email & Caps Lock.<br>2. Arahkan ke fitur **Lupa Password?** untuk reset via email.<br>3. Sarankan bersihkan Cache atau mode Incognito.<br>4. Info proteksi lockout jika >5x gagal. | Tawarkan: *"Ketik 'Buatkan tiket kendala login' agar admin IT membuka blokir akun."* |
+| **📋 Selisih / Inkonsistensi Data** | *data tidak sesuai, selisih, angka salah, laporan tidak cocok* | **Kasus A (Belum Lengkap):** AI langsung memberikan formulir terstruktur verifikasi data.<br>**Kasus B (Formulir Terisi):** AI otomatis mengonversinya menjadi tiket resmi Jira! | **Otomatis terbit di Jira (SUP)** kategori `inkonsistensi_data` dengan status `High Priority`. |
+| **📑 File Laporan Gagal Export** | *tidak bisa export, download excel/pdf gagal, tombol export macet* | 1. Perkecil rentang filter tanggal (coba per bulan/minggu agar memori tidak timeout).<br>2. Rekomendasikan format alternatif **CSV** yang lebih ringan.<br>3. Periksa pop-up blocker browser.<br>4. Hindari klik tombol berulang kali saat status loading. | Jika tombol tetap tidak merespon/error 500, user dapat mengetik *"Buatkan tiket error export"* ke developer. |
+| **💳 Status Pembayaran Pending** | *sudah transfer tapi pending, pembayaran belum masuk* | 1. Jelaskan SLA verifikasi otomatis VA/QRIS (1-5 menit).<br>2. Sarankan cek mutasi rekening bank / e-wallet.<br>3. Jika >15 menit status belum berubah, minta nomor invoice/transaksi. | AI langsung membuat tiket konfirmasi manual untuk tim finance. |
+| **⚠️ Halaman Blank / Loading Lama** | *loading berputar, blank putih, error 500, web macet* | 1. Pandu **Hard Refresh** (`Ctrl + F5` atau `Cmd + Shift + R`).<br>2. Periksa kestabilan jaringan internet.<br>3. Uji melalui browser alternatif. | Jika error berlanjut, laporkan kode error untuk tiket investigasi infrastruktur/server. |
+
+---
+
+### 13.3. Mekanisme Two-Stage Handling pada Selisih Data
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Pengguna / Klien
+    participant AI as AI Chatbot (Gemini + n8n)
+    participant Jira as Jira Service Management (SUP)
+    participant Slack as Tim Teknis (Slack)
+
+    User->>AI: "Min data penjualan di laporan ada selisih" (Belum Lengkap)
+    AI-->>User: Tahap A: Berikan template terstruktur:<br/>"• Menu: ...<br/>• ID Transaksi: ...<br/>• Data Seharusnya: ...<br/>• Data Tampil: ...<br/>• Waktu: ..."
+    
+    User->>AI: Tahap B: Membalas format:<br/>"Menu: Laporan Penjualan, ID: TRX-99812, Seharusnya 1.5jt, Tampil 1.2jt"
+    Note over AI: AI mendeteksi rincian lengkap<br/>Set Intent: report_customer_issue<br/>Category: inkonsistensi_data
+    AI->>Jira: Buat Tiket Resmi (SUP-5)
+    AI->>Slack: Alert Block Kit Tim Teknis
+    AI-->>User: Kartu Tiket Visual (#TCK-...) + Link Jira (SUP-5)
+```
+
+---
+
+### 13.4. Cara Menyesuaikan / Menambah SOP di `config/ai_registry.php`
+
+Konsultan TI dapat menambah atau memodifikasi SOP kapan saja di file `config/ai_registry.php`:
+
+```php
+'support_templates' => [
+    'nama_skenario_baru' => [
+        'topic'    => 'Judul Topik Panduan',
+        'keywords' => ['kata_kunci_1', 'kata_kunci_2'],
+        'steps'    => [
+            'Langkah 1 yang jelas dan ramah...',
+            'Langkah 2 alternatif solusi...',
+        ],
+        'escalation' => 'Pilihan tindakan pembuatan tiket jika solusi mandiri gagal.'
+    ],
+],
+```
+Endpoint `/api/v1/ai/manifest` akan otomatis menyajikan template ini ke n8n orchestrator tanpa perlu re-deploy aplikasi.
+
+---
+
+### 13.5. Auto-Detect User Session (2 Lapis Pengamanan)
+
+Untuk menghindari tiket anonim yang membingungkan konsultan (*"Ini tiket dari akun siapa?"*), sistem menerapkan 2 lapis identifikasi otomatis:
+1. **Lapis 1 (Client-side di `chat-widget.js`):** Membaca dataset Inertia.js `document.getElementById('app').dataset.page` ➔ mengekstrak `props.auth.user.name` & `props.auth.user.id`.
+2. **Lapis 2 (Server-side di `app.blade.php`):**
+   ```blade
+   <script 
+       src="/chat-widget.js" 
+       data-webhook="http://127.0.0.1:5678/webhook/chat-entry" 
+       data-user-name="{{ Auth::check() ? Auth::user()->name : '' }}" 
+       data-user-id="{{ Auth::check() ? 'user-' . Auth::id() : 'guest' }}">
+   </script>
+   ```
+3. **Quick Action Chips:** Widget menyajikan shortcut tombol cepat di tampilan awal:
+   `🔑 Bantuan Login`, `📑 Gagal Export`, `📋 Selisih Data`, `📊 Metrik Toko`, `📈 Laporan Revenue`, dan `🚨 Lapor Kendala Fitur`.
+

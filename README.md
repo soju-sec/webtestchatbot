@@ -16,25 +16,43 @@ Arsitektur chatbot cerdas universal berstandar enterprise berbasis orkestrasi **
 2. **Zero-Disruption Database Production (Isolasi Total)**:
    - Mendukung koneksi database mandiri (misal: `DB_CHATBOT_CONNECTION=sqlite` atau `chatbot_db`) sehingga database MySQL/Postgres utama production **100% tidak tersentuh**.
    - Jika memakai database yang sama, seluruh tabel menggunakan prefix `chatbot_` tanpa foreign key ke tabel bisnis, menjamin zero table locks / cascades.
-3. **Sistem Tiket Gangguan & Alert Realtime Tim Internal (Slack Channel & Multi-Channel)**:
+3. **Integrasi Enterprise ITSM: Jira Service Management (Proyek SUP - Atlassian)**:
+   - Tiket gangguan dari chat/drawer otomatis terbit di Jira Service Desk (`https://imtekservice.atlassian.net` / Project: `SUP`).
+   - Pemetaan prioritas cerdas (*High/Medium/Low*) dan tombol badge interaktif langsung di bubble chat (`🌐 Jira Service Desk: SUP-XX ↗`).
+   - Dilengkapi tool CLI diagnostik mandiri `./check-jira.sh` dan perintah Artisan `php artisan chatbot:jira`.
+4. **Automasi SOP Pertanyaan Non-Teknis & Formulir Verifikasi Data (Solusi Masalah Berulang PM/Konsultan)**:
+   - **Anti-FAQ Fatigue**: AI secara mandiri memandu kendala non-teknis umum (Login/Lupa Password, File Laporan Gagal Export, Status Pembayaran Pending, Halaman Blank).
+   - **Stop Chat Ping-Pong**: Kasus selisih data ambigu dijawab dengan formulir verifikasi terstruktur (*Menu, ID Transaksi, Nominal Seharusnya, Nominal Tampil, Waktu*). Saat user membalas, AI **otomatis mengonversi ke tiket resmi Jira**!
+5. **Sistem Tiket Gangguan & Alert Realtime Tim Internal (Slack Channel & Multi-Channel)**:
    - Jika pelanggan mengeluhkan kendala teknis (misal: fitur tidak dapat diakses, error 500, atau kendala transaksi) baik lewat chat maupun formulir kendala (*Issue Drawer*), AI otomatis membuat tiket resmi `#TCK-YYYYMMDD-XXXX`.
    - Tiket langsung disimpan di tabel `chatbot_tickets` dan sistem men-dispatch notifikasi instan ke **Channel Slack Tim Internal** (`#customer-tickets`) dengan tata letak visual **Slack Block Kit** (indikator warna tingkat urgensi, detail masalah, pelapor, dan thread diskusi tim). Opsi pengiriman ke Telegram Bot dan WhatsApp Gateway juga tetap tersedia sebagai saluran alternatif/cadangan.
-4. **Sapaan Awal Personal & Quick Action Chips (Widget v2.0)**:
-   - Saat chat dibuka, bot otomatis menyapa dengan nama user (misal: *"Halo Budi Pratama! Ada yang bisa kami bantu?"*) lengkap dengan tombol shortcut bantuan cepat (Metrik Toko, Laporan Revenue, Lapor Kendala Fitur).
-5. **Fitur Cek Sisa Token & Pemakaian Terpisah (Isolated Token Monitor)**:
+6. **Auto-Detect User Session (2 Lapis Pengamanan) & Quick Action Chips (Widget v2.0)**:
+   - **Lapis 1**: Deteksi otomatis via dataset Inertia.js (`props.auth.user`) & window globals.
+   - **Lapis 2**: Dynamic Blade session binding di template server.
+   - Shortcut tombol cepat di tampilan awal: `🔑 Bantuan Login`, `📑 Gagal Export`, `📋 Selisih Data`, `📊 Metrik Toko`, `📈 Laporan Revenue`, dan `🚨 Lapor Kendala Fitur`.
+7. **Fitur Cek Sisa Token & Pemakaian Terpisah (Isolated Token Monitor)**:
    - Pantau total token terpakai (hari ini, bulan ini, all-time) dan estimasi sisa token bulanan.
    - Tersedia via **Web Dashboard** (`package-frontend/token-dashboard.html`), **CLI Terminal** (`./check-tokens.sh`), dan **Artisan Command** (`php artisan chatbot:tokens`).
    - Lengkap dengan **Live Token Calculator** untuk menguji estimasi token sebelum prompt dikirim.
-6. **Gemini API Key Pool & Rotasi Otomatis (Anti-Kehabisan Kuota)**:
+8. **Gemini API Key Pool & Rotasi Otomatis (Anti-Kehabisan Kuota)**:
    - Mendukung multi-key di `.env` (`GEMINI_API_KEYS=key1,key2,key3`).
    - Fitur **Round-Robin Load Balancing** membagi beban request secara proporsional.
    - Fitur **Auto-Failover** otomatis mengalihkan request ke key cadangan jika ada key yang terkena *Rate Limit (HTTP 429)* atau kuota harian habis.
-7. **Dedicated Intent & Entity Parser**:
+9. **Dedicated Intent & Entity Parser**:
    - AI agent bertugas murni memetakan maksud pengguna (*intent recognition*) dan mengekstrak parameter non-sensitif (*slot extraction*).
-8. **Multi-Turn Contextual Memory**:
+10. **Multi-Turn Contextual Memory**:
    - Memanfaatkan riwayat obrolan aman untuk memahami konteks lanjutan (misalnya: *"kalau bulan depannya lagi?"* atau klarifikasi pertanyaan).
 
 ---
+
+## 🎯 Nilai Strategis untuk Project Management & Konsultan TI
+
+| Masalah Berulang di Lapangan | Dampak Tanpa Chatbot Ini | Solusi Rekayasa yang Diterapkan |
+| :--- | :--- | :--- |
+| **Banjir Pertanyaan Non-Teknis (FAQ Fatigue)** | 30-40% sprint capacity developer terbuang untuk menjawab kendala login atau export berulang. | **Automated SOP Engine**: AI menyelesaikan 80% pertanyaan operasional dasar secara instan tanpa melibatkan developer. |
+| **Chat Ping-Pong Keluhan Ambigu (*"Datanya Salah Mas"*)** | Konsultan menghabiskan waktu berjam-jam bertanya ID transaksi dan menu terkait. | **Guided Verification Form**: AI memberikan format isian lengkap dan otomatis mengubah balasan menjadi tiket Jira. |
+| **Shadow Support & Chat Tercecer** | Komplain masuk via WhatsApp personal konsultan, tidak tercatat di Jira, SLA tidak terukur. | **Jira Service Desk Sync**: Tiket otomatis tercatat di antrean resmi Jira Cloud + alert serentak di Slack tim internal. |
+| **Identitas Pengguna Anonim** | Developer bingung mencari baris data mana yang harus dicek di database. | **2-Layer Session Auto-Detect**: Tiket otomatis membawa identitas sesi login aktif (`user-id` & `user-name`). |
 
 ## 📁 Struktur Direktori
 
@@ -45,37 +63,42 @@ chatbot/
 ├── LAPORAN_ARSITEKTUR_DAN_IMPLEMENTASI.md # Laporan arsitektur teknis lengkap & formal
 ├── MANUAL_INTEGRASI.md             # Panduan implementasi, isolasi DB, Anti-PII & Tiket Slack/Telegram/WA
 ├── README.md                       # Ringkasan cepat & panduan operasional
+├── check-jira.sh                   # Script mandiri diagnosa konektivitas Jira Service Desk (SUP)
 ├── check-tokens.sh                 # Script cepat cek sisa token dari terminal
 ├── install.sh                      # Script setup & validasi instalasi lingkungan
 ├── register-ai-capability.sh       # Script otomasi pendaftaran endpoint/manifest API baru
 ├── n8n/
-│   └── universal-chatbot-workflow.json # Alur orkestrasi n8n (Anti-PII, Intent, Tiket & Slack/Telegram/WA Alert)
+│   └── universal-chatbot-workflow.json # Alur orkestrasi n8n (Anti-PII, Intent, SOP, Tiket Jira & Alert)
 ├── package-backend/                # Salin folder ini ke proyek backend Laravel Anda
 │   ├── Commands/
+│   │   ├── ChatbotJiraCommand.php  # Perintah Artisan php artisan chatbot:jira (--test / --issue)
 │   │   └── ChatbotTokenCommand.php # Perintah Artisan php artisan chatbot:tokens
 │   ├── Services/
 │   │   ├── ChatbotNotificationService.php # Pengiriman alert tiket via Slack Webhook, Telegram Bot & WhatsApp
 │   │   ├── ChatbotTokenService.php        # Layanan tracking, kuota & live count token
+│   │   ├── JiraService.php                # Layanan integrasi Atlassian Jira Service Management (SUP)
 │   │   └── PiiSanitizer.php               # Layanan sanitasi data pribadi sensitif (KTP, HP, dll.)
 │   ├── config/
-│   │   ├── chatbot.php             # Konfigurasi isolasi database, notifikasi tiket & batas kuota token
-│   │   └── ai_registry.php         # Tempat mendaftarkan manifest intent/kapabilitas API
+│   │   ├── chatbot.php             # Konfigurasi isolasi database, Jira, Slack & batas kuota token
+│   │   └── ai_registry.php         # Manifest intent & SOP pertanyaan non-teknis
 │   ├── Controllers/
-│   │   ├── AiCapabilityController.php       # Controller manifest schema kapabilitas
+│   │   ├── AiCapabilityController.php       # Controller manifest schema & SOP non-teknis
 │   │   ├── ConversationMemoryController.php # Controller penyimpanan & pembacaan memori
-│   │   ├── TicketReportController.php       # Controller tiket gangguan customer & dispatch alert
+│   │   ├── TicketReportController.php       # Controller tiket gangguan customer, Jira & dispatch alert
 │   │   └── TokenUsageController.php         # Controller terpisah untuk cek sisa token
 │   ├── Middleware/
 │   │   └── VerifyInternalApiKey.php         # Validasi token X-Internal-API-Key
 │   ├── migrations/
 │   │   ├── 2025_01_01_000001_create_chatbot_tables.php       # Migrasi pesan & token
-│   │   └── 2025_01_01_000002_create_chatbot_tickets_table.php # Migrasi tiket terisolasi
+│   │   ├── 2025_01_01_000002_create_chatbot_tickets_table.php # Migrasi tiket terisolasi
+│   │   └── 2025_01_01_000003_add_jira_fields_to_chatbot_tickets_table.php # Kolom jira_key & jira_url
 │   ├── routes/
 │   │   └── chatbot.php             # Route terisolasi (cukup 1 baris include di routes/api.php)
 │   └── bin/
+│       ├── check-jira.sh           # Script bash diagnostik Jira Cloud
 │       └── check-tokens.sh         # Script bash mandiri pengecekan token
 └── package-frontend/               # Widget chat & dashboard token terpisah
-    ├── chat-widget.js              # Script widget publik (Anti-PII, sapaan personal, issue drawer & tiket)
+    ├── chat-widget.js              # Script widget publik (Anti-PII, session auto-detect, quick chips & tiket)
     ├── chat-widget.css             # Style widget publik (responsif, drawer, kartu tiket & animasi)
     ├── index.html                  # Halaman demo integrasi chat
     └── token-dashboard.html        # Dashboard pemantauan token (khusus admin, terpisah dari publik)

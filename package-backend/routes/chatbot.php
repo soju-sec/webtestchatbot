@@ -59,6 +59,19 @@ Route::middleware([VerifyInternalApiKey::class])->prefix('v1')->group(function (
     // Integrasi Jira Service Management (Proyek SUP)
     Route::match(['get', 'post'], '/jira/test-connection', [TicketReportController::class, 'testJiraConnection']);
 
+    // Knowledge Base CMS: Template Kasus & Solusi (PM / Consultant Portal)
+    Route::get('/kb-templates', [\App\Http\Controllers\Api\KbTemplateController::class, 'index']);
+    Route::post('/kb-templates', [\App\Http\Controllers\Api\KbTemplateController::class, 'store']);
+    Route::post('/kb-templates/check-duplicate', [\App\Http\Controllers\Api\KbTemplateController::class, 'checkDuplicate']);
+    Route::post('/kb-templates/sync', [\App\Http\Controllers\Api\KbTemplateController::class, 'syncChatbot']);
+    Route::get('/kb-templates/{id}', [\App\Http\Controllers\Api\KbTemplateController::class, 'show']);
+    Route::match(['put', 'patch', 'post'], '/kb-templates/{id}', [\App\Http\Controllers\Api\KbTemplateController::class, 'update']);
+    Route::delete('/kb-templates/{id}', [\App\Http\Controllers\Api\KbTemplateController::class, 'destroy']);
+
+    // Kategori Knowledge Base
+    Route::get('/kb-categories', [\App\Http\Controllers\Api\KbCategoryController::class, 'index']);
+    Route::post('/kb-categories', [\App\Http\Controllers\Api\KbCategoryController::class, 'store']);
+
     // Fitur Pengecekan & Pemantauan Token Gemini (TERPISAH)
     Route::prefix('ai/tokens')->group(function () {
         Route::get('/summary', [TokenUsageController::class, 'summary']);   // Cek sisa kuota & total terpakai

@@ -40,6 +40,12 @@ Sistem ini dirancang secara strategis untuk menghadirkan **asisten virtual inter
 7. **Efisiensi Token & Biaya Operasional (TCO Rendah):**
    - Mengeliminasi pengiriman data tabular atau dump database berukuran besar ke LLM. Konsumsi token ditekan pada kisaran ~150–250 token per pesan, menghasilkan efisiensi biaya komputasi hingga 95% dibandingkan arsitektur RAG konvensional.
 
+8. **Integrasi Enterprise ITSM: Jira Service Management (Proyek SUP - Atlassian):**
+   - Menghubungkan pelaporan kendala chat langsung ke antrean resmi tiket Jira Service Desk (`https://imtekservice.atlassian.net` / Proyek: `SUP`), memetakan prioritas secara otomatis, dan memberikan tautan pelacakan langsung di kartu tiket pengguna.
+
+9. **Pemberantasan Masalah Berulang Project Management & Konsultan TI (Automasi SOP & Formulir Terstruktur):**
+   - Menyelesaikan *FAQ fatigue* dan *chat ping-pong* yang kerap menghabiskan jam kerja pengembang melalui **Automated Non-Technical SOP** (panduan login mandiri, solusi export file gagal, verifikasi SLA pembayaran) serta **Guided Data Verification Form** yang otomatis mengonversi data laporan selisih angka menjadi tiket resmi tanpa perdebatan komunikasi.
+
 ---
 
 ## 2. Arsitektur dan Diagram Sistem
@@ -989,6 +995,70 @@ class ChatbotNotificationService
 > ```markdown
 > ![Evidence 12 - Interactive Ticket Card](evidence/12_widget_ticket_card.png)
 > ```
+
+---
+
+### 7.6. Integrasi Enterprise ITSM: Jira Service Management (Atlassian Proyek `SUP`)
+
+Integrasi enterprise ke platform ITSM (*IT Service Management*) Atlassian Jira Service Desk bertujuan meresmikan alur kerja penanganan keluhan sistem dari level percakapan non-formal ke level tiket operasional yang memiliki SLA, workflow triage, dan akuntabilitas jelas bagi Project Manager dan konsultan pengembang:
+
+1. **Konfigurasi Instance & Hak Akses:**
+   - **Instance Cloud:** `https://imtekservice.atlassian.net`
+   - **Target Project:** `SUP` (Jira Service Management)
+   - **Autentikasi:** HTTP Basic Auth (Email: `clashroyaledeco@gmail.com` + Atlassian API Token terenkripsi)
+   - **Issue Type Fallback:** Otomatis mendeteksi tipe isu yang tersedia pada proyek (`Task`, `[System] Service request`, `[System] Incident`).
+
+2. **Pemetaan Prioritas & Data Mapping:**
+   - Urgensi `darurat` / `tinggi` ➔ Jira Priority: `High`
+   - Urgensi `sedang` ➔ Jira Priority: `Medium`
+   - Urgensi `rendah` ➔ Jira Priority: `Low`
+   - Summary tiket menyertakan nomor tiket internal dan deskripsi tersanitasi: `[TCK-YYYYMMDD-XXXX] Kendala <feature_name>: <description>`.
+
+3. **Sinkronisasi Dua Arah & UI Interaktif:**
+   - Setelah tiket dibuat di Jira, nilai `jira_key` (contoh: `SUP-1` s/d `SUP-5`) dan URL jelajah (`jira_url`) disimpan ke tabel `chatbot_tickets` dan dikirimkan kembali ke antarmuka obrolan.
+   - Widget merender tombol badge biru `🌐 Jira Service Desk: SUP-XX ↗` yang dapat diklik langsung oleh pengguna maupun tim internal untuk memantau proses penyelesaian tiket.
+   - Tersedia script diagnosa mandiri `./check-jira.sh` dan perintah Artisan `php artisan chatbot:jira` untuk memverifikasi konektivitas kapan saja.
+
+---
+
+### 7.7. Penyelesaian Masalah Berulang Project Management & Konsultan TI (PM Pain Points & Architectural Remedies)
+
+Dalam implementasi proyek perangkat lunak dan fase *post-launch warranty/maintenance*, Project Manager (PM) dan Konsultan TI secara konsisten menghadapi 4 masalah operasional berulang (*repetitive operational bottlenecks*) yang menguras anggaran, memecah fokus sprint tim developer, dan menurunkan kepuasan klien.
+
+Tabel berikut memetakan masalah berulang tersebut terhadap solusi rekayasa yang diterapkan pada sistem chatbot ini:
+
+| No | Masalah Berulang PM / Konsultan TI | Dampak Negatif pada Proyek | Solusi Rekayasa Chatbot yang Diterapkan | Bukti Validasi Sistem |
+| :---: | :--- | :--- | :--- | :--- |
+| **1** | **Banjir Tiket FAQ & Laporan Non-Teknis (Repetitive Support Fatigue)**<br>Pengguna berulang kali menanyakan: *"Saya tidak bisa login"*, *"Lupa password"*, *"Tombol export laporan macet/loading lama"*, *"Kenapa pembayaran pending"*. | Pengembang senior dan PM menghabiskan 30-40% jam kerja produktif hanya untuk menjawab pertanyaan operasional dasar yang sama. Scope sprint terganggu dan biaya operasional L1 melonjak. | **Automated SOP & Templated Non-Technical Resolution Engine**:<br>AI mengenali intent operasional (`troubleshoot_login`, `troubleshoot_export`, `troubleshoot_payment`, `troubleshoot_page_error`) dan menyajikan panduan mandiri (*self-service checklist*) terstruktur tanpa intervensi manusia. | Uji Intent `troubleshoot_login` & `troubleshoot_export` memberikan langkah solutif instan (cek filter tanggal, CSV alternatif, caps lock). |
+| **2** | **Laporan Kendala Ambigu & Ping-Pong Komunikasi ("Data Saya Salah Mas!")**<br>Klien melaporkan kendala selisih data dengan pesan minim konteks tanpa ID transaksi, tanpa nominal yang diharapkan, dan tanpa waktu kejadian. | Konsultan/PM harus bolak-balik chatting (*ping-pong*) selama berjam-jam hanya untuk mengumpulkan informasi dasar sebelum bisa membuat tiket ke developer. SLA penanganan membengkak. | **Guided Verification Form & Auto-Ticket Conversion**:<br>- **Tahap A (Clarification)**: AI mendeteksi selisih data belum lengkap dan menyajikan formulir standar verifikasi data.<br>- **Tahap B (Auto-Conversion)**: Saat pengguna membalas formulir, AI otomatis mengklasifikasikan sebagai `report_customer_issue` (`inkonsistensi_data`, urgency `tinggi`) dan langsung menerbitkan tiket Jira resmi. | Pengujian simulasi format selisih data langsung menerbitkan tiket resmi **SUP-5** di Jira Cloud dengan detail field lengkap. |
+| **3** | **Shadow Support, Chat Tercecer, & Hilangnya Akuntabilitas SLA**<br>Keluhan klien masuk melalui chat personal WhatsApp/Telegram ke konsultan. Masalah tidak tercatat di Jira/ITSM resmi, hilang dari pelacakan, dan tidak bisa diaudit. | PM kehilangan visibilitas performa tim, backlog tidak terpusat, SLA sering jebol, dan laporan bulanan ke stakeholder menjadi bias atau tidak akurat. | **Direct Two-Way Sync to Jira Service Management (Project SUP)**:<br>Seluruh komplain dari chat otomatis dikonversi menjadi tiket formal di antrean Jira Cloud dengan audit trail lengkap, serta disiarkan secara paralel ke Slack Tim Internal via Block Kit. | Tiket **SUP-1** s/d **SUP-5** tercatat rapi di antrean Jira Service Desk (`https://imtekservice.atlassian.net`). |
+| **4** | **Session Mismatch & Friction Identifikasi Pelapor**<br>Tiket masuk tanpa nama atau ID yang jelas, memaksa tim bertanya: *"Ini tiket dari akun/user siapa?"*. | Penundaan investigasi karena tim teknis tidak dapat mengidentifikasi baris data milik pengguna yang bersangkutan di database. | **Two-Layer User Session Auto-Detection**:<br>- **Lapis 1 (Client)**: Widget otomatis membaca dataset Inertia.js (`document.getElementById('app').dataset.page` ➔ `props.auth.user`).<br>- **Lapis 2 (Server)**: Blade dynamic binding `{{ Auth::check() ? Auth::user()->name : '' }}`.<br>- **Quick Action Chips**: Tombol bantuan pintas di UI widget. | Tiket di Jira otomatis terisi `Budi Pratama (cust-8821)` tanpa meminta user mengetik identitas secara manual. |
+
+#### 7.7.1. Alur Kerja Automasi SOP Non-Teknis & Formulir Verifikasi Data
+
+```mermaid
+flowchart TD
+    Start([Pengguna Mengirim Pesan Chat]) --> CheckType{Kategori Pertanyaan}
+    
+    CheckType -->|Pertanyaan Login / Export / Pembayaran| QuickSOP[AI Menyajikan Panduan Praktis Mandiri / SOP Solutif]
+    QuickSOP --> Solved{Masalah Terselesaikan?}
+    Solved -->|Ya| Done([Selesai - Deflection Sukses])
+    Solved -->|Belum / Akun Terkunci| AskTicket[Tawarkan Pembuatan Tiket Otomatis]
+    AskTicket --> CreateTicket
+    
+    CheckType -->|Kendala Selisih Data / Angka Salah| CheckDetails{Detail Data Lengkap?}
+    CheckDetails -->|Belum Lengkap / Kasus A| SendTemplate[AI Mengirimkan Format Verifikasi Data Terstruktur]
+    SendTemplate --> UserFill[Pengguna Mengisi Format & Mengirim Balasan]
+    UserFill --> CreateTicket
+    
+    CheckDetails -->|Sudah Lengkap / Kasus B| CreateTicket[AI Ekstrak Parameter: Menu, ID Transaksi, Nominal]
+    
+    CreateTicket --> ActionReport[Intent: report_customer_issue<br/>Category: inkonsistensi_data / bug_export]
+    ActionReport --> JiraSync[Otomatis Terbitkan Tiket Jira Service Desk: SUP-XX]
+    JiraSync --> MultiChannel[Dispatch Alert Paralel: Slack Block Kit, Telegram & WhatsApp]
+    MultiChannel --> RenderBadge[Kirim Kartu Tiket + Tautan Jira ke Chat Pengguna]
+    RenderBadge --> End([Tiket Masuk Antrean Resmi Tim Teknis])
+```
 
 ---
 
