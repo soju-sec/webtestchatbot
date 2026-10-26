@@ -1,10 +1,45 @@
 (function () {
   const currentScript = document.currentScript || document.querySelector('script[data-webhook]');
   const WEBHOOK_URL = (currentScript && currentScript.getAttribute('data-webhook')) || 'http://localhost:5678/webhook/chat-entry';
-  const USER_ID = (currentScript && currentScript.getAttribute('data-user-id')) || 'guest-user';
-  const USER_NAME = (currentScript && currentScript.getAttribute('data-user-name')) || '';
   const BOT_NAME = (currentScript && currentScript.getAttribute('data-bot-name')) || 'Asisten Virtual';
   const CUSTOM_GREETING = (currentScript && currentScript.getAttribute('data-greeting')) || '';
+
+  // Auto-detect logged-in user from Inertia.js (Velzon), window globals, or script attributes
+  function detectLoggedInUser() {
+    let rawId = currentScript && currentScript.getAttribute('data-user-id');
+    let rawName = currentScript && currentScript.getAttribute('data-user-name');
+
+    // 1. Auto-detect from Inertia.js dataset (Velzon / Laravel Inertia apps)
+    try {
+      const appEl = document.getElementById('app');
+      if (appEl && appEl.dataset && appEl.dataset.page) {
+        const pageData = JSON.parse(appEl.dataset.page);
+        const user = pageData?.props?.auth?.user || pageData?.props?.user;
+        if (user && user.name) {
+          return { id: 'user-' + (user.id || '1'), name: user.name };
+        }
+      }
+    } catch (e) {}
+
+    // 2. Auto-detect from window.Laravel or window.authUser
+    if (window.Laravel && window.Laravel.user && window.Laravel.user.name) {
+      return { id: 'user-' + (window.Laravel.user.id || '1'), name: window.Laravel.user.name };
+    }
+    if (window.authUser && window.authUser.name) {
+      return { id: 'user-' + (window.authUser.id || '1'), name: window.authUser.name };
+    }
+
+    // 3. Fallback to script attributes
+    if (rawName && rawName.trim() && rawName !== 'Budi Pratama') {
+      return { id: rawId || 'user-1', name: rawName.trim() };
+    }
+
+    return { id: rawId || 'guest-user', name: rawName || '' };
+  }
+
+  const userSession = detectLoggedInUser();
+  const USER_ID = userSession.id;
+  const USER_NAME = userSession.name;
   const CONVERSATION_ID = `conv-${USER_ID}-${Math.random().toString(36).substring(2, 9)}`;
 
   // Tentukan nama sapaan ramah
