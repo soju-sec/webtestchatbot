@@ -201,13 +201,17 @@ class JiraService
         $timeStr      = date('Y-m-d H:i:s') . ' WIB';
 
         // 1. Tentukan Priority Jira berdasarkan Urgensi
-        $jiraPriority = match ($urgency) {
-            'darurat', 'critical' => 'Highest',
-            'tinggi', 'high'       => 'High',
-            'sedang', 'medium'     => 'Medium',
-            'rendah', 'low'        => 'Low',
-            default                => 'High',
-        };
+        $priorityMap = [
+            'darurat'  => 'Highest',
+            'critical' => 'Highest',
+            'tinggi'   => 'High',
+            'high'     => 'High',
+            'sedang'   => 'Medium',
+            'medium'   => 'Medium',
+            'rendah'   => 'Low',
+            'low'      => 'Low',
+        ];
+        $jiraPriority = $priorityMap[$urgency] ?? 'High';
 
         // 2. Tentukan Summary Singkat yang Informatif
         $summary = "[{$ticketNumber}] Kendala {$featureName}: " . mb_substr($description, 0, 70);
@@ -215,18 +219,43 @@ class JiraService
             $summary .= '...';
         }
 
+        // Parameter Siskeudes TNT & CMS Bank
+        $kabupaten    = $ticket['kabupaten'] ?? null;
+        $desa         = $ticket['nama_desa'] ?? null;
+        $reporterPhone= $ticket['reporter_phone'] ?? null;
+        $noSpp        = $ticket['no_spp'] ?? null;
+        $noKwitansi   = $ticket['no_kwitansi'] ?? null;
+        $kodeSiskeudes= $ticket['kode_cms_siskeudes'] ?? null;
+        $kodeBank     = $ticket['kode_cms_bank'] ?? null;
+
+        $siskeudesSection = '';
+        if (!empty($kabupaten) || !empty($desa) || !empty($noSpp) || !empty($noKwitansi) || !empty($kodeSiskeudes) || !empty($kodeBank) || !empty($reporterPhone)) {
+            $siskeudesSection = "----\n"
+                . "h4. 🏛️ Parameter Transaksi Siskeudes TNT & CMS Bank:\n"
+                . (!empty($kabupaten) ? "* *Kabupaten:* {$kabupaten}\n" : '')
+                . (!empty($desa) ? "* *Nama Desa:* {$desa}\n" : '')
+                . (!empty($reporterPhone) ? "* *No. WhatsApp Pelapor:* `{$reporterPhone}`\n" : '')
+                . (!empty($noSpp) ? "* *No. SPP:* {{ {$noSpp} }}\n" : '')
+                . (!empty($noKwitansi) ? "* *No. Kwitansi:* {{ {$noKwitansi} }}\n" : '')
+                . (!empty($kodeSiskeudes) ? "* *Kode CMS Siskeudes TNT:* {{ {$kodeSiskeudes} }}\n" : '')
+                . (!empty($kodeBank) ? "* *Kode CMS App Bank:* {{ {$kodeBank} }}\n" : '')
+                . "\n";
+        }
+
         // 3. Susun Deskripsi Lengkap dengan Header & Format Jira Rapi
         $jiraDescription = "h3. 🚨 Laporan Kendala Sistem dari Chatbot Pelanggan\n\n"
             . "* *Nomor Tiket Chatbot:* {{#{$ticketNumber}}}\n"
             . "* *Pelapor:* `{$userId}`{$userName}\n"
+            . (!empty($reporterPhone) ? "* *WhatsApp Pelapor:* `{$reporterPhone}`\n" : '')
             . "* *Fitur Terkendala:* *{$featureName}*\n"
             . "* *Kategori Masalah:* {$category}\n"
             . "* *Tingkat Urgensi:* *{$jiraPriority}* (Input: {$urgency})\n"
             . "* *ID Percakapan:* `{$conversation}`\n"
             . "* *Kanal Pelaporan:* `{$channel}`\n"
             . "* *Waktu Kejadian:* {$timeStr}\n\n"
+            . $siskeudesSection
             . "----\n"
-            . "h4. 📝 Rincian Masalah Pelanggan:\n"
+            . "h4. 📝 Rincian Masalah / Keterangan Kendala:\n"
             . "{quote}\n{$description}\n{quote}\n\n"
             . "----\n"
             . "_Tiket ini dibuat secara otomatis oleh Universal AI Chatbot System._";

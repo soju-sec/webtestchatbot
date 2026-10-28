@@ -61,6 +61,29 @@ return [
             ]
         ],
         [
+            'action' => 'export_store_report_excel',
+            'method' => 'GET',
+            'path' => '/api/v1/reports/store-metrics/excel',
+            'description' => 'Mengunduh atau meminta file laporan data performa toko dan rincian revenue bulanan dalam format spreadsheet Excel (.xlsx / .csv)',
+            'params' => ['year', 'format'],
+            'current_data' => [
+                'filename' => 'Laporan_Eksekutif_Performa_2026.csv',
+                'download_path' => '/api/v1/reports/store-metrics/excel',
+                'description' => 'File Excel spreadsheet lengkap berisi data Orders, Gross Earnings, Refunds, dan Rasio Konversi per bulan Januari s/d Desember'
+            ]
+        ],
+        [
+            'action' => 'get_revenue_chart',
+            'method' => 'GET',
+            'path' => '/api/v1/reports/store-metrics/chart',
+            'description' => 'Menampilkan atau mengirimkan grafik/chart visual tren performa penjualan dan pendapatan bulanan (bar chart & line orders)',
+            'params' => ['chart_type', 'year'],
+            'current_data' => [
+                'chart_url' => 'https://quickchart.io/chart?w=600&h=380&devicePixelRatio=2&c=%7Btype%3A%27bar%27%2Cdata%3A%7Blabels%3A%5B%27Jan%27%2C%27Feb%27%2C%27Mar%27%2C%27Apr%27%2C%27Mei%27%2C%27Jun%27%2C%27Jul%27%2C%27Agu%27%2C%27Sep%27%2C%27Okt%27%2C%27Nov%27%2C%27Des%27%5D%2Cdatasets%3A%5B%7Blabel%3A%27Revenue%20(%24k)%27%2Cdata%3A%5B89.25%2C98.58%2C68.74%2C108.87%2C77.54%2C84.03%2C51.24%2C28.57%2C92.57%2C42.36%2C88.51%2C36.57%5D%2CbackgroundColor%3A%27%23128c7e%27%7D%2C%7Btype%3A%27line%27%2Clabel%3A%27Orders%27%2Cdata%3A%5B34%2C65%2C46%2C68%2C49%2C61%2C42%2C44%2C78%2C52%2C63%2C67%5D%2CborderColor%3A%27%23f59e0b%27%7D%5D%7D%7D',
+                'summary' => 'Grafik Tren Penjualan 2026: Puncak di April ($108.87k), terendah di Agustus ($28.57k)'
+            ]
+        ],
+        [
             'action' => 'get_user_profile',
             'method' => 'GET',
             'path' => '/api/v1/user/{user_id}/profile',
@@ -74,20 +97,93 @@ return [
             'description' => 'Melihat riwayat transaksi penjualan dan order pengguna',
             'params' => ['status', 'limit', 'date_from', 'date_to']
         ],
+        [
+            'action' => 'check_spp_cair',
+            'method' => 'GET',
+            'path' => '/api/v1/siskeudes/spp/status',
+            'description' => 'Mengecek status pencairan SPP di Siskeudes-Link / CMS Bank Desa berdasarkan nomor SPP atau nomor kwitansi (waktu transaksi, no referensi bank, status pembayaran)',
+            'params' => ['no_spp', 'no_kwitansi'],
+            'current_data' => [
+                'status_pembayaran' => 'Sudah dibayarkan',
+                'keterangan_pembayaran' => 'Transaksi pokok berhasil dibayarkan',
+                'no_referensi_bank' => '001637',
+                'waktu_transaksi' => '03-09-2024 15:12:06',
+                'spp_contoh' => '0015/SPP/12.2001/2024'
+            ]
+        ],
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | SOP & Templating Pertanyaan Non-Teknis (Customer Support Knowledge)
+    | SOP & Templating Pertanyaan Resmi Siskeudes-Link TNT & Non-Teknis
     |--------------------------------------------------------------------------
-    | Panduan operasional standar dan panduan jawaban ramah pengguna non-teknis:
-    | 1. Kendala Login / Tidak bisa masuk akun
-    | 2. Selisih Data / Inkonsistensi (Format Verifikasi Data Lanjut)
-    | 3. File Laporan Tidak Bisa Diexport
-    | 4. Kendala Status Pembayaran Pending
-    | 5. Halaman Blank / Loading Stuck / Error Sistem
+    | Panduan operasional standar berbasis Manual Book Siskeudes-Link resmi:
+    | 1. Verifikasi SPP & Upload Berkas SPTJB/SPP2 (Hal. 10 & 11)
+    | 2. Status Akun Merah saat Verifikasi SPP (Hal. 10 Poin C)
+    | 3. Sinkronisasi SPP Final Siskeudes Online ke Siskeudes-Link (Hal. 4 & 10)
+    | 4. Koreksi ID Billing Pajak & Potongan Belum Bayar (Hal. 14, 15, 16)
+    | 5. Menu Pembayaran Gagal CMS Bank Desa (Hal. 6 Menu No. 7)
     */
     'support_templates' => [
+        'spp_verifikasi_upload' => [
+            'topic' => 'Verifikasi Data SPP & Upload Berkas SPTJB/SPP2 (Manual Hal. 10 & 11)',
+            'keywords' => ['upload spp', 'sptjb', 'spp2', 'captcha', 'tombol setuju', 'kode cms tidak muncul', 'verifikasi spp', 'gagal upload'],
+            'steps' => [
+                'Buka menu <b>Verifikasi SPP</b>, lalu klik tombol <b>Aksi</b> pada baris nomor SPP yang akan diverifikasi.',
+                'Unggah berkas <b>SPTJB</b> (Surat Pernyataan Tanggung Jawab Belanja) dan berkas <b>SPP2</b> yang telah ditandatangani basah/resmi oleh perangkat desa.',
+                'Ketikkan kode keamanan <b>Captcha</b> sesuai kombinasi angka/huruf yang muncul pada pop-up layar.',
+                'Pastikan muncul konfirmasi teks berwarna hijau bertuliskan <i>"File berhasil diupload"</i>.',
+                'Klik tombol <b>Setuju</b> pada pop-up konfirmasi verifikasi. Setelah disetujui, sistem akan otomatis menerbitkan <b>Kode CMS</b> untuk diproses ke Bank.'
+            ],
+            'escalation' => 'Jika tombol Setuju tetap abu-abu atau Captcha gagal terus, laporkan via Form Kendala Siskeudes agar tim teknis memeriksa modul upload server.'
+        ],
+        'spp_akun_merah' => [
+            'topic' => 'Status Akun Merah pada Menu Verifikasi SPP (Manual Hal. 10 Poin C)',
+            'keywords' => ['akun merah', 'status merah', 'rekening merah', 'tidak bisa verifikasi', 'rekening tidak cocok'],
+            'steps' => [
+                'Pada layar Verifikasi SPP, jika indikator akun berwarna <b>MERAH</b>, data tersebut <b>belum dapat diverifikasi</b> karena ada ketidaksesuaian nomor rekening bank atau pagu kas.',
+                'Buka kembali aplikasi <b>Siskeudes Online Desktop</b> di komputer desa.',
+                'Periksa rekening kas desa pada menu Penatausahaan ➔ SPP Definitif, pastikan rekening bank dan rekening rincian belanja sudah sesuai.',
+                'Lakukan perbaikan data di Siskeudes Online hingga valid, lalu simpan.',
+                'Buka kembali Siskeudes-Link; indikator akun akan otomatis berubah menjadi <b>HIJAU</b> dan tombol verifikasi siap digunakan.'
+            ],
+            'escalation' => 'Jika rekening di Siskeudes Online sudah dipastikan benar tetapi status di web tetap merah, gunakan tombol Lapor Kendala untuk sinkronisasi master rekening.'
+        ],
+        'spp_online_sync' => [
+            'topic' => 'SPP dari Siskeudes Online Belum Muncul di Siskeudes-Link (Manual Hal. 4 & 10)',
+            'keywords' => ['spp tidak muncul', 'spp belum masuk', 'spp online', 'tarik spp', 'spp hilang', 'spp belum ada'],
+            'steps' => [
+                'Siskeudes-Link hanya menarik data <b>SPP Definitif</b> yang berstatus <b>FINAL</b> dari aplikasi Siskeudes Online.',
+                'Buka aplikasi Siskeudes Online, masuk ke menu <b>SPP Pelaksana Kegiatan</b>.',
+                'Cari nomor SPP yang bersangkutan, lalu periksa dropdown <b>Status</b> di bagian bawah.',
+                'Ubah status SPP menjadi <b>"Final"</b> (bukan Baru / Draft), lalu klik <b>Simpan</b>.',
+                'Buka kembali browser Siskeudes-Link dan refresh menu <b>Data SPP</b> atau <b>Verifikasi SPP</b>.'
+            ],
+            'escalation' => 'Jika status SPP di Siskeudes Online sudah Final tetapi lebih dari 10 menit belum muncul di Siskeudes-Link, laporkan nomor SPP via Form Kendala Siskeudes.'
+        ],
+        'pajak_koreksi_id_billing' => [
+            'topic' => 'Koreksi ID Billing Pajak & Potongan Belum Bayar (Manual Hal. 14, 15, 16)',
+            'keywords' => ['id billing', 'billing pajak', 'pajak belum bayar', 'koreksi billing', 'ntpn', 'billing kedaluwarsa'],
+            'steps' => [
+                'Untuk memeriksa daftar potongan pajak yang belum dibayarkan melalui CMS Bank, masuk ke menu <b>Koreksi ID Billing Pajak</b> (Bab 2.7).',
+                'Jika kode billing pajak sudah kedaluwarsa (*expired*), generate ID Billing baru di DJP Online atau Siskeudes.',
+                'Masukkan nomor ID Billing baru pada kolom koreksi di baris potongan pajak terkait.',
+                'Lanjutkan proses pembayaran potongan pajak melalui aplikasi CMS Bank Desa.',
+                'Setelah sukses terdebet, bukti nomor <b>NTPN</b> dan <b>NTB</b> akan otomatis tercatat dan berpindah ke menu <b>Pajak (Daftar Potongan Pajak yang Sudah Dibayarkan)</b>.'
+            ],
+            'escalation' => 'Jika pajak sudah didebet di bank tetapi NTPN tidak muncul di menu Pajak Siskeudes-Link, buatkan tiket dengan melampirkan No. Bukti/Kwitansi.'
+        ],
+        'pembayaran_gagal_bank' => [
+            'topic' => 'Penanganan Menu Pembayaran Gagal di CMS Bank (Manual Hal. 6 Menu No. 7)',
+            'keywords' => ['pembayaran gagal', 'gagal debet', 'rekening pasif', 'saldo tidak cukup', 'cms bank tolak', 'transaksi ditolak'],
+            'steps' => [
+                'Klik menu <b>Pembayaran Gagal</b> pada navigasi utama Siskeudes-Link untuk melihat daftar transaksi yang ditolak oleh sistem perbankan.',
+                'Periksa kolom keterangan penolakan; penyebab umum antara lain: <b>Rekening Penerima Tidak Aktif/Pasif</b>, <b>Nama & Nomor Rekening Tidak Cocok</b>, atau <b>Saldo Kas Desa Tidak Cukupi</b>.',
+                'Jika rekening penerima pasif, hubungi rekanan/penerima untuk memastikan nomor rekening valid dan aktif.',
+                'Jika saldo kurang, koordinasikan dengan Bank BPD mitra untuk rekonsiliasi mutasi kas desa.'
+            ],
+            'escalation' => 'Jika saldo mencukupi dan rekening penerima aktif namun status tetap Pembayaran Gagal, laporkan via Form Kendala Siskeudes dengan menyertakan Kode CMS Siskeudes & Kode CMS Bank.'
+        ],
         'login_troubleshooting' => [
             'topic' => 'Kendala Login / Tidak Bisa Masuk Akun',
             'keywords' => ['login', 'masuk', 'password', 'kata sandi', 'terkunci', 'lupa password', 'akun terkunci'],

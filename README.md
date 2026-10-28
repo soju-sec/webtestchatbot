@@ -5,6 +5,7 @@ Arsitektur chatbot cerdas universal berstandar enterprise berbasis orkestrasi **
 > 📚 **Dokumentasi Lengkap**:
 > - 🏛️ **[LAPORAN_ARSITEKTUR_DAN_IMPLEMENTASI.md](LAPORAN_ARSITEKTUR_DAN_IMPLEMENTASI.md)**: Dokumen arsitektur teknis mendalam, analisis zero-knowledge LLM, diagram topologi/flowchart, dan kalkulasi token.
 > - 📖 **[MANUAL_INTEGRASI.md](MANUAL_INTEGRASI.md)**: Panduan langkah-demi-langkah integrasi, panduan setup Slack Webhook, Telegram/WhatsApp, isolasi database, dan registrasi API.
+> - 📱 **[PANDUAN_CHATBOT_WHATSAPP_EKSEKUTIF.md](PANDUAN_CHATBOT_WHATSAPP_EKSEKUTIF.md)**: Panduan arsitektur WhatsApp Chatbot Khusus Eksekutif (Dual-Flow: Web Customer vs WA Eksekutif).
 
 ---
 

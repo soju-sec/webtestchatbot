@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Executive AI Assistant Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --wa-header-bg: #075e54;
+      --wa-header-green: #128c7e;
+      --wa-chat-bg: #efeae2;
+      --wa-outgoing-bubble: #d9fdd3;
+      --wa-incoming-bubble: #ffffff;
+      --wa-text-primary: #111b21;
+      --wa-text-secondary: #667781;
+      --wa-border: #e9edef;
+      --wa-accent: #25d366;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0b141a;
+      color: #e9edef;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+
+    .top-nav {
+      max-width: 960px;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .nav-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-title h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.3px;
+    }
+
+    .vip-badge {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 10px;
+    }
+
+    .nav-btn {
+      padding: 7px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-btn-web {
+      background: #1f2c34;
+      color: #00a884;
+      border: 1px solid #2a3942;
+    }
+    .nav-btn-web:hover {
+      background: #2a3942;
+      color: #25d366;
+    }
+
+    .nav-btn-token {
+      background: #2a3942;
+      color: #f59e0b;
+      border: 1px solid #374751;
+    }
+    .nav-btn-token:hover {
+      background: #374751;
+    }
+
+    .main-layout {
+      max-width: 960px;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 840px) {
+      .main-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Panel Kiri: Pengaturan & Quick Action Eksekutif */
+    .controls-panel {
+      background: #111b21;
+      border: 1px solid #202c33;
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #00a884;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #8696a0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .select-input, .text-input {
+      background: #202c33;
+      border: 1px solid #2a3942;
+      border-radius: 8px;
+      padding: 9px 12px;
+      color: #e9edef;
+      font-size: 13.5px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .select-input:focus, .text-input:focus {
+      border-color: #00a884;
+    }
+
+    .chips-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .quick-chip {
+      background: #1f2c34;
+      border: 1px solid #2a3942;
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: #e9edef;
+      font-size: 12.5px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .quick-chip:hover {
+      background: #2a3942;
+      border-color: #00a884;
+      transform: translateY(-1px);
+    }
+
+    .chip-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .architecture-box {
+      background: #182229;
+      border-left: 3px solid #00a884;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #8696a0;
+      line-height: 1.5;
+    }
+
+    .architecture-box b {
+      color: #e9edef;
+    }
+
+    /* Panel Kanan: Smartphone Simulator WhatsApp */
+    .phone-mockup {
+      width: 100%;
+      max-width: 440px;
+      margin: 0 auto;
+      background: #000000;
+      border-radius: 36px;
+      padding: 10px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px #2a3942;
+      position: relative;
+    }
+
+    .screen-container {
+      background: var(--wa-chat-bg);
+      border-radius: 28px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 640px;
+      position: relative;
+    }
+
+    /* WhatsApp Header */
+    .wa-header {
+      background: var(--wa-header-green);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      z-index: 10;
+    }
+
+    .wa-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #075e54;
+      border: 2px solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .wa-contact-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .wa-contact-name {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .wa-verified {
+      color: #25d366;
+      font-size: 14px;
+    }
+
+    .wa-contact-status {
+      font-size: 11.5px;
+      opacity: 0.85;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Chat Messages Stream */
+    .wa-chat-body {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background-image: radial-gradient(#d1d7db 10%, transparent 11%);
+      background-size: 16px 16px;
+      background-color: var(--wa-chat-bg);
+    }
+
+    .bubble-wrapper {
+      display: flex;
+      width: 100%;
+    }
+
+    .bubble-wrapper.user {
+      justify-content: flex-end;
+    }
+
+    .bubble-wrapper.bot {
+      justify-content: flex-start;
+    }
+
+    .chat-bubble {
+      max-width: 82%;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      line-height: 1.45;
+      color: var(--wa-text-primary);
+      position: relative;
+      word-wrap: break-word;
+      box-shadow: 0 1px 1.5px rgba(11, 20, 26, 0.13);
+    }
+
+    .bubble-wrapper.user .chat-bubble {
+      background: var(--wa-outgoing-bubble);
+      border-top-right-radius: 2px;
+    }
+
+    .bubble-wrapper.bot .chat-bubble {
+      background: var(--wa-incoming-bubble);
+      border-top-left-radius: 2px;
+    }
+
+    .bubble-time {
+      float: right;
+      font-size: 10.5px;
+      color: var(--wa-text-secondary);
+      margin-left: 10px;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    /* WhatsApp Markdown Formatting in Bubbles */
+    .chat-bubble b, .chat-bubble strong {
+      font-weight: 700;
+    }
+
+    .chat-bubble i, .chat-bubble em {
+      font-style: italic;
+    }
+
+    .chat-bubble code {
+      background: rgba(0, 0, 0, 0.06);
+      padding: 1px 4px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    .chat-bubble hr {
+      border: none;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+      margin: 8px 0;
+    }
+
+    .bubble-notice {
+      font-size: 11px;
+      color: #075e54;
+      background: #e8f5e9;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-top: 6px;
+      display: block;
+    }
+
+    /* Typing Indicator */
+    .typing-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 1px 1.5px rgba(0,0,0,0.1);
+      width: fit-content;
+    }
+
+    .typing-dot {
+      width: 6px;
+      height: 6px;
+      background: #8696a0;
+      border-radius: 50%;
+      animation: pulseDot 1.4s infinite ease-in-out;
+    }
+
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes pulseDot {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
+
+    /* WhatsApp Input Footer */
+    .wa-footer {
+      background: #f0f2f5;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-top: 1px solid #e9edef;
+    }
+
+    .wa-input {
+      flex: 1;
+      background: #ffffff;
+      border: none;
+      border-radius: 20px;
+      padding: 9px 16px;
+      font-size: 13.5px;
+      font-family: inherit;
+      outline: none;
+      color: var(--wa-text-primary);
+    }
+
+    .wa-send-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--wa-header-green);
+      color: #ffffff;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .wa-send-btn:hover {
+      background: var(--wa-accent);
+    }
+
+    .wa-send-btn:disabled {
+      background: #aebac1;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <div class="top-nav">
+    <div class="nav-title">
+      <span style="font-size: 24px;">📱</span>
+      <h1>WhatsApp Executive Chatbot Simulator</h1>
+      <span class="vip-badge">VIP C-Level Access</span>
+    </div>
+    <div class="nav-links">
+      <a href="index.html" class="nav-btn nav-btn-web">🌐 Mode Web Chatbot (Customer) ↗</a>
+      <a href="token-dashboard.html" class="nav-btn nav-btn-token">🪙 Token Monitor ↗</a>
+    </div>
+  </div>
+
+  <div class="main-layout">
+    
+    <!-- Left Controls Panel -->
+    <div class="controls-panel">
+      <div class="panel-title">
+        <span>⚙️</span> Profil Eksekutif & Kanal
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="profileSelect">Pilih Profil Pengguna:</label>
+        <select id="profileSelect" class="select-input">
+          <option value="budi_ceo" selected>Pak Budi Santoso (Direktur Utama / CEO)</option>
+          <option value="siti_cfo">Ibu Siti Rahma (Direktur Keuangan / CFO)</option>
+          <option value="hendra_coo">Pak Hendra (GM Operasional)</option>
+          <option value="unauthorized">Nomor Tak Dikenal (Uji Whitelist Security)</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Nomor WhatsApp Pengirim:</label>
+        <input type="text" id="phoneInput" class="text-input" value="628123456789" readonly>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Target Endpoint Ingress:</label>
+        <input type="text" id="endpointInput" class="text-input" value="http://localhost:5678/webhook/chat-entry">
+      </div>
+
+      <div class="chips-section">
+        <label class="field-label">Shortcut Cepat Eksekutif (1-Click):</label>
+        <button class="quick-chip" onclick="sendPrompt('Halo, sajikan ringkasan performa toko dan metrik earnings terkini!')">
+          <span class="chip-icon">📊</span>
+          <span><b>Executive Summary</b> Metrik Toko Terkini</span>
+        </button>
+        <button class="quick-chip" onclick="sendPrompt('Bagaimana rincian performa revenue dan penjualan bulan April?')">
+          <span class="chip-icon">📈</span>
+          <span><b>Revenue April</b> Laporan Penjualan</span>
+        </button>
+        <button class="quick-chip" onclick="sendPrompt('Sistem transaksi pembayaran lambat, tolong segera prioritaskan dan investigasi!')">
+          <span class="chip-icon">🚨</span>
+          <span><b>Lapor Kendala VIP</b> Terbitkan Tiket Jira</span>
+        </button>
+        <button class="quick-chip" onclick="sendPrompt('Min, tolong kirimkan laporan performa revenue dalam format excel')">
+          <span class="chip-icon">📁</span>
+          <span><b>Minta Laporan Excel (.csv/.xlsx)</b> Download Rekap Bisnis</span>
+        </button>
+        <button class="quick-chip" onclick="sendPrompt('Tampilkan grafik visual tren penjualan dan performa revenue bulanan')">
+          <span class="chip-icon">📊</span>
+          <span><b>Grafik Tren Penjualan</b> Visual Bar & Line Chart</span>
+        </button>
+        <button class="quick-chip" onclick="sendPrompt('Cek akun saya nomor KTP 3201123456789012 dan no HP 08123456789')">
+          <span class="chip-icon">🛡️</span>
+          <span><b>Uji Masking PII</b> Keamanan Data Sensitif</span>
+        </button>
+      </div>
+
+      <div class="architecture-box">
+        <b>🧠 Single Engine, Dual Ingress:</b><br>
+        Alur orkestrasi ini menggunakan <b>engine n8n & Gemini AI yang sama persis</b> dengan Web Widget. Bedanya, jika <code>channel=whatsapp</code>, AI otomatis beralih ke <b>Executive Briefing Persona</b> berformat <b>WhatsApp Markdown</b> (*teks*, _italic_, bullet) tanpa HTML mentah!
+      </div>
+    </div>
+
+    <!-- Right Panel: Authentic WhatsApp Smartphone View -->
+    <div class="phone-mockup">
+      <div class="screen-container">
+        
+        <!-- WhatsApp Header -->
+        <div class="wa-header">
+          <div class="wa-avatar">🤖</div>
+          <div class="wa-contact-info">
+            <div class="wa-contact-name">
+              <span>Executive AI Assistant</span>
+              <span class="wa-verified" title="Akun Resmi Terverifikasi">✓</span>
+            </div>
+            <div class="wa-contact-status" id="headerStatus">Terhubung ke Core BI & Jira</div>
+          </div>
+          <div style="font-size: 18px; cursor: pointer; opacity: 0.85;">⋮</div>
+        </div>
+
+        <!-- Chat Stream -->
+        <div class="wa-chat-body" id="chatBody">
+          <!-- Initial Welcome Message -->
+          <div class="bubble-wrapper bot">
+            <div class="chat-bubble">
+              <b>👔 EXECUTIVE AI BRIEFING ACTIVE</b><br>
+              Yth. <b id="greetingName">Pak Budi Santoso (CEO)</b>,<br><br>
+              Asisten Eksekutif terhubung langsung ke analitik bisnis dan antrean tiket <b>Jira Service Management (SUP)</b>.<br><br>
+              Silakan ketik pertanyaan Anda atau klik shortcut di sebelah kiri untuk melihat performa earnings, tren revenue, atau instruksi darurat.<br>
+              <div class="bubble-time">09:00 WIB</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WhatsApp Input Bar -->
+        <div class="wa-footer">
+          <span style="font-size: 20px; color: #54656f; cursor: pointer;">😊</span>
+          <input type="text" id="userInput" class="wa-input" placeholder="Ketik pesan ke Executive Assistant..." onkeydown="handleKeyDown(event)">
+          <button id="sendBtn" class="wa-send-btn" onclick="sendMessage()" title="Kirim">
+            ➤
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const profiles = {
+      budi_ceo: { name: "Budi Santoso (Direktur Utama)", phone: "628123456789", role: "executive", greeting: "Pak Budi Santoso (CEO)" },
+      siti_cfo: { name: "Siti Rahma (Direktur Keuangan)", phone: "628198765432", role: "executive", greeting: "Ibu Siti Rahma (CFO)" },
+      hendra_coo: { name: "Hendra Wijaya (GM Operasional)", phone: "628111222333", role: "executive", greeting: "Pak Hendra Wijaya (GM Operasional)" },
+      unauthorized: { name: "Nomor Tak Dikenal", phone: "628999999999", role: "guest", greeting: "Tamu" }
+    };
+
+    const profileSelect = document.getElementById('profileSelect');
+    const phoneInput = document.getElementById('phoneInput');
+    const greetingName = document.getElementById('greetingName');
+    const chatBody = document.getElementById('chatBody');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const endpointInput = document.getElementById('endpointInput');
+
+    profileSelect.addEventListener('change', function() {
+      const selected = profiles[this.value];
+      phoneInput.value = selected.phone;
+      greetingName.textContent = selected.greeting;
+    });
+
+    function getCurrentTime() {
+      const now = new Date();
+      return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0') + ' WIB';
+    }
+
+    // Mengonversi WhatsApp Markdown ke HTML visual di browser
+    function renderWhatsAppMarkdown(text) {
+      if (!text) return '';
+      let safe = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Format bold *teks*
+      safe = safe.replace(/\*([^*\n]+)\*/g, '<b>$1</b>');
+
+      // Format italic _teks_
+      safe = safe.replace(/_([^_\n]+)_/g, '<i>$1</i>');
+
+      // Format strikethrough ~teks~
+      safe = safe.replace(/~([^~\n]+)~/g, '<del>$1</del>');
+
+      // Format code `teks`
+      safe = safe.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+      // Deteksi URL QuickChart dan render sebagai gambar WhatsApp media
+      const chartRegex = /(https:\/\/quickchart\.io\/chart\?[^\s<]+)/g;
+      safe = safe.replace(chartRegex, function(match) {
+        return `<div style="margin: 8px 0;"><img src="${match}" alt="Grafik Tren Penjualan" style="width: 100%; max-width: 360px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); display: block;"><small style="display:block; color:#667781; font-size:11px; margin-top:4px;">📊 Grafik Interaktif QuickChart HD</small></div>`;
+      });
+
+      // Deteksi Tautan Download Excel dan render sebagai tombol unduh WhatsApp file
+      const excelRegex = /(http[s]?:\/\/[^\s<]+\/api\/v1\/reports\/store-metrics\/excel)/g;
+      safe = safe.replace(excelRegex, function(match) {
+        return `<div style="margin: 8px 0;"><a href="${match}" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; background: #075e54; color: #ffffff; padding: 8px 14px; border-radius: 8px; text-decoration: none; font-size: 12.5px; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"><span>📥</span> Unduh Spreadsheet Excel (.csv)</a></div>`;
+      });
+
+      // Line breaks
+      safe = safe.replace(/\n/g, '<br>');
+
+      return safe;
+    }
+
+    function appendMessage(text, isUser = false) {
+      const wrapper = document.createElement('div');
+      wrapper.className = `bubble-wrapper ${isUser ? 'user' : 'bot'}`;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble';
+
+      if (isUser) {
+        bubble.textContent = text;
+      } else {
+        bubble.innerHTML = renderWhatsAppMarkdown(text);
+      }
+
+      const timeSpan = document.createElement('div');
+      timeSpan.className = 'bubble-time';
+      timeSpan.textContent = getCurrentTime() + (isUser ? ' ✓✓' : '');
+      bubble.appendChild(timeSpan);
+
+      wrapper.appendChild(bubble);
+      chatBody.appendChild(wrapper);
+      chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
+    function showTypingIndicator() {
+      const wrapper = document.createElement('div');
+      wrapper.id = 'typingWrapper';
+      wrapper.className = 'bubble-wrapper bot';
+      wrapper.innerHTML = `
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      `;
+      chatBody.appendChild(wrapper);
+      chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      const indicator = document.getElementById('typingWrapper');
+      if (indicator) indicator.remove();
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      }
+    }
+
+    function sendPrompt(text) {
+      userInput.value = text;
+      sendMessage();
+    }
+
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text) return;
+
+      const profile = profiles[profileSelect.value];
+      const endpoint = endpointInput.value.trim() || 'http://localhost:5678/webhook/chat-entry';
+
+      appendMessage(text, true);
+      userInput.value = '';
+      sendBtn.disabled = true;
+      showTypingIndicator();
+
+      // Payload universal dengan channel: 'whatsapp' dan role: 'executive'
+      const payload = {
+        conversation_id: 'wa_' + profile.phone,
+        user_id: profile.phone,
+        user_name: profile.name,
+        message: text,
+        channel: 'whatsapp',
+        role: profile.role
+      };
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        removeTypingIndicator();
+        sendBtn.disabled = false;
+
+        if (response.ok) {
+          const data = await response.json();
+          const replyText = data.reply || data.whatsapp_reply || 'Respon diterima tanpa teks.';
+          appendMessage(replyText, false);
+        } else {
+          appendMessage('⚠️ *Gagal Terhubung ke Orkestrator*\nStatus HTTP: ' + response.status + '\nPastikan server n8n atau backend berjalan di: ' + endpoint, false);
+        }
+      } catch (err) {
+        removeTypingIndicator();
+        sendBtn.disabled = false;
+        appendMessage('⚠️ *Kendala Konektivitas*\nTidak dapat menghubungi endpoint: ' + endpoint + '\n' + err.message, false);
+      }
+    }
+  </script>
+</body>
+</html>

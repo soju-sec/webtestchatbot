@@ -9,7 +9,13 @@
 
 ## 1. Executive Summary & Latar Belakang
 
-Sistem ini dirancang secara strategis untuk menghadirkan **asisten virtual interaktif, adaptif, dan berstandar enterprise** pada portal web layanan publik dan aplikasi bisnis. Asisten virtual ini mampu menjawab pertanyaan seputar metrik transaksi, performa penjualan/pendapatan, status order, menjawab panduan layanan, serta menangani **pelaporan gangguan sistem oleh pelanggan secara otomatis dengan menerbitkan tiket resmi dan mengirimkan notifikasi instan yang tertata rapi ke Channel Slack Tim Teknis Internal (didukung opsi redundansi ke Telegram dan WhatsApp)**.
+<div align="center">
+  <img src="package-frontend/assets/logo-siskeudes-tnt.png" alt="Logo Asisten Digital Siskeudes TNT" width="220" style="border-radius: 16px; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);" />
+  <h3>Asisten Digital Siskeudes TNT</h3>
+  <p><b>iMD IMTEK MEDIA DATA</b> &bull; Universal AI Helpdesk & Transaksi Non-Tunai Support</p>
+</div>
+
+Sistem ini dirancang secara strategis untuk menghadirkan **asisten virtual interaktif, adaptif, dan berstandar enterprise** pada portal web layanan publik dan aplikasi bisnis, dengan fokus khusus pada **Asisten Digital Siskeudes TNT (Transaksi Non-Tunai Desa)**. Asisten virtual ini mampu menjawab pertanyaan seputar metrik transaksi, performa penjualan/pendapatan, status order, menjawab panduan layanan, serta menangani **pelaporan gangguan transaksi Siskeudes TNT secara otomatis dengan menerbitkan tiket resmi di Jira Service Management (SUP), mengirimkan notifikasi instan ke Channel Slack Tim Internal, dan mengirimkan notifikasi tanda terima & hasil akhir ke WhatsApp pelapor secara hemat kuota (Zero-Spam)**.
 
 ### 1.1. Tantangan Utama & Solusi Rekayasa Sistem
 
@@ -45,6 +51,9 @@ Sistem ini dirancang secara strategis untuk menghadirkan **asisten virtual inter
 
 9. **Pemberantasan Masalah Berulang Project Management & Konsultan TI (Automasi SOP & Formulir Terstruktur):**
    - Menyelesaikan *FAQ fatigue* dan *chat ping-pong* yang kerap menghabiskan jam kerja pengembang melalui **Automated Non-Technical SOP** (panduan login mandiri, solusi export file gagal, verifikasi SLA pembayaran) serta **Guided Data Verification Form** yang otomatis mengonversi data laporan selisih angka menjadi tiket resmi tanpa perdebatan komunikasi.
+
+10. **Pelaporan Siskeudes TNT & Kebijakan Notifikasi Zero-Spam WhatsApp:**
+    - Memfasilitasi kebutuhan pelaporan transaksi non-tunai desa (8 atribut transaksi wajib: No WA, Kabupaten, Desa, No SPP, No Kwitansi, Kode CMS Siskeudes TNT, Kode CMS Bank, dan Kendala) dengan kebijakan hemat kuota WhatsApp API (maksimal 2 pesan per tiket: Tanda Terima Awal + Magic Tracking Link, dan Hasil Penyelesaian saat status tiket di-resolve di Jira). Follow-up dialihkan ke **Web-First Tracking** tanpa membebani kuota API WhatsApp.
 
 ---
 
@@ -1278,5 +1287,102 @@ volumes:
 
 ---
 
+## 11. Modul Pelaporan Siskeudes TNT, Zero-Spam WhatsApp & Integrasi 2-Arah Jira
+
+Sebagai wujud penyempurnaan implementasi spesifik kebutuhan **Transaksi Non-Tunai Desa (Siskeudes TNT) & CMS Bank**, sistem kini dilengkapi modul pelaporan khusus yang menjamin efisiensi kuota API WhatsApp, perlindungan data desa, serta integrasi 2-arah otomatis ke Jira Service Management.
+
+### 11.1. Identitas Visual Resmi & Persona Robot Asisten
+Modul ini mengusung identitas visual resmi **Asisten Digital Siskeudes TNT** di bawah naungan **iMD IMTEK MEDIA DATA**:
+- **Avatar & Icon**: Robot pintar putih-biru berkacamata digital dengan headset support dan balon percakapan hijau-biru.
+- **Implementasi**: Tersemat pada tombol melayang chat (`#ai-chat-btn`), header obrolan widget (`#ai-chat-header`), sapaan awal personal, serta kartu pelacak mandiri (*Magic Tracking Page*).
+
+### 11.2. Format Formulir Pelaporan 8 Parameter Wajib
+Formulir drawer web widget (`#ai-issue-drawer`) mengumpulkan 8 data esensial transaksi non-tunai:
+1. **No WA Pelapor**: Nomor WhatsApp untuk tanda terima & notifikasi akhir hasil penanganan.
+2. **Kabupaten**: Instansi kabupaten asal pelapor.
+3. **Nama Desa**: Nama desa tempat transaksi berlangsung.
+4. **No SPP**: Nomor Surat Permintaan Pembayaran.
+5. **No Kwitansi**: Nomor kwitansi/tanda bukti pembayaran.
+6. **Kode CMS Siskeudes TNT**: Kode transaksi yang tercatat pada aplikasi Siskeudes TNT.
+7. **Kode CMS App Bank**: Kode transaksi yang tercatat pada aplikasi CMS Bank.
+8. **Keterangan / Kendala**: Uraian rinci kendala transaksi atau pesan error sistem.
+
+### 11.3. Kebijakan Zero-Spam WhatsApp Notification (Maksimal 2 Pesan per Tiket)
+Untuk menghindari *rate-limit* WhatsApp API dan pembengkakan biaya percakapan bisnis Meta:
+- **Pesan #1 (Tanda Terima & Magic Link)**: Dikirim 1x seketika saat pelaporan di-*submit*. Berisi No. Tiket `#TCK-...`, identitas desa, dan tautan unik Magic Tracking Link.
+- **Pesan #2 (Hasil Penyelesaian / Solved)**: Dikirim 1x secara otomatis saat teknisi menyelesaikan tiket di Jira (status `Done` / `Resolved`). Memuat ringkasan solusi teknisi.
+- **Tanpa Bot Chat / Survei CSAT di WA**: Semua tanya-jawab berkala dan follow-up dialihkan ke **Web-First Tracking** untuk mempertahankan TCO minimum.
+
+### 11.4. Magic Tracking Link Mandiri (Self-Service Tracker)
+- **Endpoint**: `GET /api/v1/tickets/track/{ticketNumber}?token={token}`
+- **Keamanan**: Dilindungi `token` unik acak 32-karakter per tiket sehingga data desa aman dari tebakan nomor tiket oleh pihak luar.
+- **Tampilan Interaktif**:
+  - *Stepped Timeline Card*: `Diterima` ➔ `Investigasi Teknisi` ➔ `Selesai (Resolved)`.
+  - Grid Parameter Transaksi Siskeudes TNT (SPP, Kwitansi, Kode CMS).
+  - Kotak Solusi Hijau saat status tiket dinyatakan *Resolved*.
+  - Tombol Salin Nomor Tiket & Perbarui Status.
+
+### 11.5. Integrasi 2-Arah Jira Cloud Webhook
+- **Endpoint Webhook**: `POST /api/v1/jira/webhook` (Route publik bebas internal key agar Atlassian Jira Cloud dapat memicu langsung).
+- **Mekanisme Otomasi**:
+  1. Teknisi menyelesaikan tiket di Jira Service Desk (Project SUP) ➔ Status diubah ke `Done` / `Resolved`.
+  2. Jira menembak Webhook backend dengan payload `jira:issue_updated`.
+  3. Backend mencocokkan `jira_key` ke tabel `chatbot_tickets`, memperbarui status lokal, dan mengekstrak *resolution notes*.
+  4. Sistem mengecek *idempotency guard* (`resolved_notified_at`). Jika belum pernah dikirim, Pesan #2 otomatis terkirim ke WhatsApp pelapor secara instan.
+
+### 11.6. Skema Tabel Terisolasi `chatbot_tickets` (Revisi 2026)
+Kolom tambahan yang diaplikasikan melalui migrasi `2026_10_28_000001_add_siskeudes_and_magic_tracking_to_chatbot_tickets_table.php`:
+- `reporter_phone` (`varchar(30)`): Nomor WhatsApp pelapor ternormalisasi (`628...`).
+- `kabupaten` (`varchar(100)`): Nama kabupaten.
+- `nama_desa` (`varchar(100)`): Nama desa pelapor.
+- `tahun_anggaran` (`varchar(10)`): Tahun anggaran transaksi (default: tahun berjalan).
+- `no_spp` (`varchar(100)`): Nomor SPP transaksi.
+- `no_kwitansi` (`varchar(100)`): Nomor kwitansi transaksi.
+- `kode_cms_siskeudes` (`varchar(100)`): Kode CMS di Siskeudes TNT.
+- `kode_cms_bank` (`varchar(100)`): Kode CMS di App Bank.
+- `tracking_token` (`varchar(64)`): Token rahasia URL Magic Tracking Link.
+- `resolution_notes` (`text`): Catatan solusi / penjelasan teknisi dari Jira.
+- `resolved_notified_at` (`timestamp`): Waktu pengiriman WhatsApp solved (idempotency flag).
+
+---
+
+### 11.7. Arsitektur Multi-Kabupaten & Auto-Deteksi Wilayah Dinamis
+Mengingat implementasi Siskeudes TNT disebarkan ke berbagai kabupaten di seluruh Indonesia (di mana endpoint API terakhir bermuara pada tingkat kabupaten), nama kabupaten dan desa **tidak boleh di-hardcode**:
+1. **Script Tag Ingress**: Script embed mendukung atribut `data-kabupaten="..."`, `data-desa="..."`, dan `data-tahun="..."`.
+2. **Global Context Auto-Detection**: Sistem otomatis mendeteksi objek sesi global aplikasi induk (`window.siskeudesContext`, `window.siskeudesSession`, `window.Laravel`, `window.AppConfig`).
+3. **Inertia.js Dataset Scanner**: Membaca dataset `#app[data-page]` untuk mengekstrak properti `kabupaten` dan `desa` dari *session state*.
+4. **DOM Text / Meta Scanner**: Membaca meta tag `<meta name="kabupaten">` atau teks navigasi navbar desa (`.header-desa`, `#current-desa`, `.badge-desa`).
+5. **Auto-Fill Form Laporan**: Saat form lapor kendala dibuka, kolom Kabupaten dan Nama Desa terisi otomatis namun tetap dapat disesuaikan secara manual oleh operator jika dibutuhkan.
+
+---
+
+### 11.8. Endpoint Pengecekan Mandiri Status Pencairan SPP (Read-Only API)
+- **Endpoint**: `GET /api/v1/siskeudes/spp/status?no_spp={no_spp}&kabupaten={kab}&nama_desa={desa}&tahun={tahun}`
+- **Karakteristik**:
+  - Bersifat *Read-Only*, tidak memodifikasi data dan aman dipanggil berulang kali dari web chat tanpa membebani limit pesan WhatsApp.
+  - Sesuai dengan format data resmi **Manual Book Siskeudes-Link Kemendagri / BPKP (Gambar 2.12)**:
+    - Nomor Bukti / No. SPP & No. Kwitansi
+    - Kode CMS Siskeudes-Link & Kode CMS Bank
+    - Waktu Transaksi & Nomor Referensi Bank (`FT...`)
+    - Status Pembayaran: `BERHASIL_CAIR` (🟢 Hijau) atau `MENUNGGU_VERIFIKASI_SEKDES` (🟡 Kuning)
+    - Rekening Tujuan Bank & Nama Penerima (Kas Desa / Rekanan)
+    - Rincian Nominal: Belanja Bruto, Potongan Pajak, dan Netto (Diterima Bersih)
+    - Status ID Billing Pajak (Terbayar otomatis via CMS)
+    - Alur Dokumen: Status Final Siskeudes Online, Upload SPTJB/SPP2, Verifikasi Sekdes, dan Approval Kades.
+  - Kartu hasil pencairan di chat widget dilengkapi tombol cepat: *"🚨 Ada Masalah pada SPP Ini? Laporkan"* yang langsung mengisi nomor SPP & Kode CMS ke form drawer laporan.
+
+---
+
+### 11.9. Integrasi Knowledge Base & SOP Resmi Siskeudes-Link
+Chatbot menyediakan panduan langkah-demi-langkah interaktif berbasis Manual Book Aplikasi Siskeudes-Link:
+1. **Verifikasi SPP & Upload Berkas (Hal. 10 & 11 Poin D)**: SOP unggah SPTJB & SPP2 PDF bermeterai/stempel basah, input Captcha, konfirmasi teks hijau, dan tombol Setuju untuk generate Kode CMS.
+2. **Solusi Status Akun Merah (Hal. 10 Poin C)**: Rekening/pagu tidak cocok di Siskeudes Desktop. Panduan pembetulan di menu Penatausahaan ➔ SPP Definitif hingga indikator berubah Hijau.
+3. **Alur Sinkronisasi SPP Siskeudes Online (Hal. 4 & 10)**: Penjelasan bahwa Siskeudes-Link hanya menarik SPP berstatus **FINAL** (bukan Draft/Baru) dari menu SPP Pelaksana Kegiatan di Siskeudes Online.
+4. **Pajak & Koreksi ID Billing Kadaluarsa (Hal. 15 & 16)**: Prosedur menu Pajak untuk input ID Billing baru tanpa membatalkan SPP yang sudah berjalan.
+5. **Menu Pembayaran Gagal di CMS Bank Desa (Hal. 6 Menu No. 7)**: Panduan identifikasi transaksi yang ditolak Bank (rekening pasif/dormant, salah nomor rekening, atau saldo kas kurang), serta langkah pembatalan verifikasi untuk perbaikan rekening.
+
+---
+
 **Disetujui oleh:** Lead Enterprise Architect & Chief Information Security Officer (CISO)  
-**Status Revisi:** v2.0 - Multi-Turn Context, Anti-PII Shield, Slack/Multi-Channel Incident Ticketing & Token Isolation Architecture Verified.
+**Status Revisi:** v2.6 - Siskeudes TNT Reporting Module, Multi-Kabupaten Context Detection, Read-Only SPP Status API, Interactive SOP Knowledge Base & 2-Way Jira Webhook Verified.
+

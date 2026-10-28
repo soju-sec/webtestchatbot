@@ -40,7 +40,36 @@ Route::post('/webhook/chat-entry', function (Request $request) {
     }
 });
 
-// 2. Internal Chatbot API (Protected by Internal API Key)
+// 2. Webhook Ingress WhatsApp Khusus Eksekutif (Fonnte, Wablas, Meta Cloud API, Twilio)
+Route::match(['get', 'post'], '/webhook/whatsapp-entry', [\App\Http\Controllers\Api\WhatsAppWebhookController::class, 'handleIncoming']);
+Route::get('/webhook/whatsapp-entry/verify', [\App\Http\Controllers\Api\WhatsAppWebhookController::class, 'verifyWebhook']);
+Route::post('/webhook/whatsapp-entry/simulate', [\App\Http\Controllers\Api\WhatsAppWebhookController::class, 'simulate']);
+
+// Route publik untuk melayani file gambar chart PNG asli (diakses Fonnte untuk dikirim sebagai foto)
+Route::get('/reports/store-metrics/chart.png', [\App\Http\Controllers\Api\ReportExportController::class, 'getChartImage']);
+Route::get('/v1/reports/store-metrics/chart.png', [\App\Http\Controllers\Api\ReportExportController::class, 'getChartImage']);
+
+// Route publik untuk unduh spreadsheet Excel eksekutif (bisa diklik langsung dari WhatsApp tanpa header API key)
+Route::get('/reports/store-metrics/excel', [\App\Http\Controllers\Api\ReportExportController::class, 'exportExcel']);
+Route::get('/v1/reports/store-metrics/excel', [\App\Http\Controllers\Api\ReportExportController::class, 'exportExcel']);
+
+// Route publik Magic Tracking Link (Bisa diakses mandiri oleh pelapor dari WhatsApp)
+Route::get('/tickets/track/{ticketNumber}', [TicketReportController::class, 'track']);
+Route::get('/v1/tickets/track/{ticketNumber}', [TicketReportController::class, 'track']);
+
+// Route publik Webhook Jira Cloud (Integrasi 2-Arah untuk auto-notif saat status Resolved)
+Route::match(['get', 'post'], '/jira/webhook', [TicketReportController::class, 'handleJiraWebhook']);
+Route::match(['get', 'post'], '/v1/jira/webhook', [TicketReportController::class, 'handleJiraWebhook']);
+
+// Route publik pengiriman laporan formulir dari web widget
+Route::post('/tickets/public-submit', [TicketReportController::class, 'store']);
+Route::post('/v1/tickets/public-submit', [TicketReportController::class, 'store']);
+
+// Route publik pengecekan status pencairan SPP Siskeudes-Link / CMS Bank
+Route::get('/siskeudes/spp/status', [TicketReportController::class, 'checkSppStatus']);
+Route::get('/v1/siskeudes/spp/status', [TicketReportController::class, 'checkSppStatus']);
+
+// 3. Internal Chatbot API (Protected by Internal API Key)
 Route::middleware([VerifyInternalApiKey::class])->prefix('v1')->group(function () {
     // Intent Manifest & Capabilities
     Route::get('/ai/manifest', [AiCapabilityController::class, 'manifest']);
@@ -55,6 +84,9 @@ Route::middleware([VerifyInternalApiKey::class])->prefix('v1')->group(function (
     Route::get('/tickets/{ticketNumber}', [TicketReportController::class, 'show']);
     Route::patch('/tickets/{ticketNumber}/status', [TicketReportController::class, 'updateStatus']);
     Route::match(['get', 'post'], '/tickets/{ticketNumber}/jira-sync', [TicketReportController::class, 'syncJiraStatus']);
+
+    // Laporan Eksekutif: Grafik Chart Visual (Internal)
+    Route::get('/reports/store-metrics/chart', [\App\Http\Controllers\Api\ReportExportController::class, 'getChartUrl']);
 
     // Integrasi Jira Service Management (Proyek SUP)
     Route::match(['get', 'post'], '/jira/test-connection', [TicketReportController::class, 'testJiraConnection']);

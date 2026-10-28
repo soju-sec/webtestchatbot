@@ -59,19 +59,11 @@ class ChatbotTokenCommand extends Command
         $usage = $summary['usage'];
         $limits = $summary['model_limits'];
 
-        $statusColor = match ($quota['status']) {
-            'safe'      => 'green',
-            'warning'   => 'yellow',
-            'exceeded'  => 'red',
-            default     => 'blue',
-        };
+        $colorMap = ['safe' => 'green', 'warning' => 'yellow', 'exceeded' => 'red'];
+        $statusColor = $colorMap[$quota['status']] ?? 'blue';
 
-        $statusEmoji = match ($quota['status']) {
-            'safe'      => '🟢',
-            'warning'   => '🟡',
-            'exceeded'  => '🔴',
-            default     => 'ℹ️',
-        };
+        $emojiMap = ['safe' => '🟢', 'warning' => '🟡', 'exceeded' => '🔴'];
+        $statusEmoji = $emojiMap[$quota['status']] ?? 'ℹ️';
 
         $keyPool = $summary['key_pool'] ?? [];
         $keyCount = $keyPool['total_keys'] ?? 1;

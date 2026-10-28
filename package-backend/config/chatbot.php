@@ -60,6 +60,42 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | WhatsApp Chatbot Khusus Eksekutif (Executive AI Assistant)
+    |--------------------------------------------------------------------------
+    | Saluran percakapan interaktif khusus jajaran Direksi, C-Level & Manajer.
+    | Menggunakan alur orkestrasi & engine AI yang SAMA PERSIS dengan Web Chatbot,
+    | namun disesuaikan secara khusus untuk kebutuhan eksekutif:
+    |
+    | 1. Persona Eksekutif: Jawaban lugas, padat, data-driven (Executive Summary).
+    | 2. Formatting: Otomatis berformat WhatsApp Markdown (*bold*, _italic_, bullet).
+    | 3. Whitelist Nomor: Filter keamanan ketat agar data strategis hanya dapat
+    |    diakses oleh nomor WhatsApp jajaran pimpinan yang telah terdaftar.
+    | 4. Prioritas Insiden: Laporan kendala dari eksekutif otomatis berstatus VIP / HIGH.
+    */
+    'executive_whatsapp' => [
+        'enabled'           => (bool) env('WHATSAPP_EXECUTIVE_ENABLED', true),
+        'provider'          => env('WHATSAPP_PROVIDER', 'fonnte'), // fonnte, wablas, meta_cloud, generic
+        'api_url'           => env('WHATSAPP_API_URL', 'https://api.fonnte.com/send'),
+        'api_key'           => env('WHATSAPP_API_KEY', ''),
+        'verify_token'      => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN', ''),
+        
+        // Membatasi hanya nomor yang terdaftar yang boleh berinteraksi dengan AI
+        'require_whitelist' => (bool) env('WHATSAPP_EXECUTIVE_REQUIRE_WHITELIST', true),
+        
+        // Daftar nomor WhatsApp eksekutif (format dipisahkan koma atau array)
+        // Contoh: '08123456789,08198765432,628111222333'
+        'whitelist_numbers' => env('WHATSAPP_EXECUTIVE_WHITELIST', ''),
+
+        // Pemetaan nomor ke nama & jabatan eksekutif (opsional)
+        // Format: '08123456789:Budi (CEO),08198765432:Siti (CFO)'
+        'executive_directory' => env('WHATSAPP_EXECUTIVE_DIRECTORY', ''),
+        
+        // Pesan penolakan jika nomor tidak terdaftar dalam whitelist
+        'unauthorized_message' => "🔒 *Akses Terbatas: Executive AI Assistant*\n\nNomor WhatsApp Anda belum terdaftar dalam direktori eksekutif resmi perusahaan. Silakan hubungi Administrator IT untuk mendaftarkan akses Anda.",
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Integrasi Jira Service Management / Jira Service Desk (Atlassian)
     |--------------------------------------------------------------------------
     | Setiap tiket kendala pelanggan yang dibuat oleh chatbot akan otomatis

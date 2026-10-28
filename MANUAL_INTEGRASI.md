@@ -587,5 +587,72 @@ Untuk menghindari tiket anonim yang membingungkan konsultan (*"Ini tiket dari ak
    </script>
    ```
 3. **Quick Action Chips:** Widget menyajikan shortcut tombol cepat di tampilan awal:
-   `🔑 Bantuan Login`, `📑 Gagal Export`, `📋 Selisih Data`, `📊 Metrik Toko`, `📈 Laporan Revenue`, dan `🚨 Lapor Kendala Fitur`.
+   `🔑 Bantuan Login`, `📑 Gagal Export`, `📋 Selisih Data`, `📊 Metrik Toko`, `📈 Laporan Revenue`, dan `🚨 Form Lapor Kendala Siskeudes`.
 
+---
+
+## 🏛️ 14. Sistem Pelaporan Siskeudes TNT & Zero-Spam WhatsApp Notification
+
+Sistem dirancang khusus untuk memenuhi kebutuhan pelaporan transaksi Siskeudes TNT & CMS Bank dengan kebijakan **Zero-Spam & Cost-Effective WhatsApp Notification** (maksimal 2 pesan per tiket):
+
+### 📋 1. Format Form Pelaporan Siskeudes TNT:
+Formulir drawer web widget (`#ai-issue-drawer`) mengumpulkan 8 data esensial:
+1. **No WA**: Nomor WhatsApp pelapor untuk penerimaan bukti tanda terima & hasil akhir.
+2. **Kabupaten**: Nama Kabupaten instansi desa.
+3. **Nama Desa**: Nama Desa pelapor.
+4. **No SPP**: Nomor Surat Permintaan Pembayaran terkait.
+5. **No Kwitansi**: Nomor bukti kwitansi transaksi.
+6. **Kode CMS pada Siskeudes TNT**: Kode transaksi di aplikasi Siskeudes TNT.
+7. **Kode CMS pada App CMS**: Kode transaksi pada aplikasi CMS Bank.
+8. **Keterangan / Kendala**: Rincian kendala teknis atau pesan error yang dialami.
+
+### 📱 2. Siklus Dua Pesan WhatsApp (Dual-Message Lifecycle):
+- **Pesan #1 (Tanda Terima & Magic Tracking Link)**:
+  Dikirim seketika saat form dikirimkan. Memuat nomor tiket `#TCK-...`, identitas desa, dan tautan Magic Link mandiri.
+- **Pesan #2 (Hasil Penyelesaian / Solved)**:
+  Dikirim secara otomatis saat teknisi menyelesaikan issue di Jira (status `Done` / `Resolved`). Memuat rincian solusi teknisi.
+- **Tanpa Spam / CSAT**: Tidak ada pesan tanya-jawab bot bolak-balik di WhatsApp sehingga kuota API WhatsApp 100% aman dan terukur.
+
+### 🔗 3. Magic Tracking Link (Self-Service Tracker):
+- URL: `https://domain.com/api/v1/tickets/track/{ticket_number}?token={tracking_token}`
+- Pelapor dapat memantau status secara mandiri melalui visual timeline:
+  `Diterima` ➔ `Dalam Investigasi` ➔ `Selesai (Resolved)` tanpa antre dan tanpa membebani limit WhatsApp.
+
+### 🔄 4. Integrasi 2-Arah Jira Cloud (Webhook):
+- URL Webhook: `POST /api/v1/jira/webhook`
+- Event Jira: `jira:issue_updated`
+- Saat teknisi memindahkan tiket Jira ke status *Resolved / Done*, webhook memicu backend untuk memperbarui status database lokal dan mengirimkan Pesan #2 ke WhatsApp pelapor secara otomatis (dilengkapi idempotency guard `resolved_notified_at`).
+
+### 🗺️ 5. Script Identifikasi Wilayah Dinamis Multi-Kabupaten:
+Karena proyek ini diterapkan di banyak kabupaten di mana endpoint API terakhir berada di level kabupaten:
+```javascript
+// Diaplikasikan otomatis di chat-widget.js:
+function detectSiskeudesContext() {
+  // 1. Script Attributes: data-kabupaten & data-desa
+  // 2. Global JS State: window.siskeudesContext, window.Laravel, window.AppConfig
+  // 3. Inertia State: document.getElementById('app').dataset.page
+  // 4. Meta Tags & DOM: meta[name="kabupaten"], .header-desa, #current-desa
+}
+```
+Saat form drawer dibuka, kolom **Kabupaten** dan **Nama Desa** langsung terisi otomatis (*auto-filled*) sesuai konteks sesi pengguna yang aktif, tanpa perlu mengetik ulang, namun tetap dapat disunting jika operator menangani lebih dari satu desa.
+
+### 🔍 6. Endpoint Pengecekan Mandiri Status Pencairan SPP (Read-Only API):
+- **Endpoint**: `GET /api/v1/siskeudes/spp/status?no_spp={no_spp}&kabupaten={kab}&nama_desa={desa}&tahun={tahun}`
+- **Fungsi**: Membaca data pencairan SPP langsung dari API Siskeudes-Link / CMS Bank Desa sesuai **Manual Book Kemendagri / BPKP (Gambar 2.12)**:
+  - Nomor Bukti / No. SPP & No. Kwitansi
+  - Kode CMS Siskeudes-Link & Kode CMS Bank
+  - Waktu Transaksi & No. Referensi Bank
+  - Status Pembayaran: `BERHASIL_CAIR` (🟢) / `MENUNGGU_VERIFIKASI_SEKDES` (🟡)
+  - Rekening Penerima Kas Desa / Rekanan
+  - Rincian Nominal: Belanja Bruto, Potongan Pajak, dan Netto (Diterima Bersih)
+  - Status ID Billing Pajak
+  - Alur Verifikasi (Siskeudes Online Final, Upload SPTJB/SPP2, Verifikasi Sekdes, Approval Kades)
+  - Dilengkapi tombol eskalasi *"🚨 Ada Masalah pada SPP Ini? Laporkan"* yang langsung mem-prefill nomor SPP ke formulir lapor kendala.
+
+### 📚 7. SOP & Knowledge Base Resmi Siskeudes-Link (Out-of-the-Box):
+Tersedia langsung di chat widget dan endpoint AI manifest:
+1. **Verifikasi SPP & Upload Berkas (Hal. 10 Poin D)**: SOP upload SPTJB & SPP2 PDF, input Captcha, konfirmasi teks hijau, dan tombol Setuju untuk penerbitan Kode CMS.
+2. **Solusi Status Akun Merah (Hal. 10 Poin C)**: Rekening/pagu tidak cocok di Siskeudes Online. Pembetulan di menu Penatausahaan ➔ SPP Definitif hingga indikator berubah Hijau.
+3. **Alur SPP Siskeudes Online (Hal. 4 & 10)**: Penjelasan bahwa Siskeudes-Link hanya menarik data SPP yang berstatus **FINAL** (bukan Draft/Baru) dari Siskeudes Online.
+4. **Pajak & Koreksi ID Billing Kadaluarsa (Hal. 15 & 16)**: Prosedur menu Pajak untuk input ID Billing baru tanpa membatalkan SPP.
+5. **Menu Pembayaran Gagal di CMS Bank Desa (Hal. 6 Menu No. 7)**: Panduan identifikasi transaksi yang ditolak Bank (rekening pasif/dormant, salah nomor rekening, atau saldo kas kurang), serta langkah pembatalan verifikasi untuk perbaikan rekening.
