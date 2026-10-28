@@ -552,39 +552,6 @@
     });
   }
 
-  // Deteksi nomor SPP yang sedang tampil di layar / tabel aktif
-  function getPageSppNumbers() {
-    const list = [];
-    try {
-      // 1. Cek dari sel tabel pencairansppmanual atau datatables
-      const cells = document.querySelectorAll('#pencairansppmanual-table td, table.yajra-datatable td, table td');
-      const regex = /\b(\d{3,5}\/SPP\/[0-9A-Za-z./-]+)\b/i;
-      cells.forEach(c => {
-        const txt = (c.innerText || '').trim();
-        const m = txt.match(regex);
-        if (m && !list.includes(m[1]) && list.length < 5) {
-          list.push(m[1]);
-        }
-      });
-
-      // 2. Jika tidak ada di tabel, periksa body text
-      if (list.length === 0 && document.body) {
-        const bodyTxt = document.body.innerText || '';
-        const globalReg = /\b(\d{3,5}\/SPP\/[0-9A-Za-z./-]+)\b/g;
-        let match;
-        while ((match = globalReg.exec(bodyTxt)) !== null) {
-          if (!list.includes(match[1])) {
-            list.push(match[1]);
-          }
-          if (list.length >= 4) break;
-        }
-      }
-    } catch (e) {
-      console.debug('Error detecting page SPPs:', e);
-    }
-    return list;
-  }
-
   // Deteksi apakah user menanyakan status SPP secara umum tanpa menyertakan nomor spesifik
   function isGeneralSppInquiry(text) {
     const t = (text || '').trim().toLowerCase();
@@ -624,28 +591,20 @@
     return null;
   }
 
-  // Tanya nomor SPP ke pengguna + tawarkan pilihan SPP dari layar aktif jika ada
+  // Tanya nomor SPP ke pengguna
   function askForSppNumber(originalText) {
     if (originalText) {
       appendMsg('user', originalText);
     }
-    const pageSpps = getPageSppNumbers();
 
-    let replyHtml = `Silakan ketikkan <b>Nomor SPP</b>, <b>Kode CMS</b>, atau <b>Nomor Kwitansi</b> yang ingin dicek status pencairannya:<br><br>`
+    const replyHtml = `Silakan ketikkan <b>Nomor SPP</b>, <b>Kode CMS Siskeudes</b>, atau <b>Nomor Kwitansi</b> yang ingin dicek status pencairannya:<br><br>`
       + `<i>Contoh format:</i><br>`
       + `• <code>00001/SPP/51.03.01.2001/2026</code><br>`
-      + `• <code>CMS2026001001</code>`;
-
-    if (pageSpps.length > 0) {
-      replyHtml += `<br><br>💡 <b>Atau pilih langsung SPP yang tertera di layar Anda saat ini:</b><div class="ai-quick-chips" style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px;">`;
-      pageSpps.forEach(spp => {
-        replyHtml += `<button type="button" class="ai-chip-btn ai-chip-spp-item" data-spp="${spp}">📋 ${spp}</button>`;
-      });
-      replyHtml += `</div>`;
-    }
+      + `• <code>CMS2026001001</code><br>`
+      + `• <code>KW-1/2026</code>`;
 
     appendMsg('bot', replyHtml);
-    input.placeholder = "Ketik atau pilih no. SPP (00001/SPP/...)...";
+    input.placeholder = "Ketik no. SPP (contoh: 00001/SPP/51.03.01.2001/2026)...";
     input.focus();
   }
 
