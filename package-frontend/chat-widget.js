@@ -404,10 +404,24 @@
   // Handle Quick Chip Queries
   msgContainer.addEventListener('click', (e) => {
     const chip = e.target.closest('.ai-chip-btn');
-    if (chip && chip.dataset.query) {
-      input.value = chip.dataset.query;
-      form.requestSubmit();
-    } else if (chip && chip.id === 'ai-btn-open-issue-form') {
+    if (!chip) return;
+
+    if (chip.classList.contains('ai-chip-spp-item') && chip.dataset.spp) {
+      const sppNumber = chip.dataset.spp;
+      input.value = sppNumber;
+      handleSppInquiry(sppNumber, sppNumber);
+      return;
+    }
+
+    if (chip.dataset.query) {
+      const query = chip.dataset.query;
+      if (isGeneralSppInquiry(query)) {
+        askForSppNumber(query);
+      } else {
+        input.value = query;
+        form.requestSubmit();
+      }
+    } else if (chip.id === 'ai-btn-open-issue-form') {
       toggleDrawer(true);
     }
   });
@@ -538,6 +552,110 @@
     });
   }
 
+  // Deteksi nomor SPP yang sedang tampil di layar / tabel aktif
+  function getPageSppNumbers() {
+    const list = [];
+    try {
+      // 1. Cek dari sel tabel pencairansppmanual atau datatables
+      const cells = document.querySelectorAll('#pencairansppmanual-table td, table.yajra-datatable td, table td');
+      const regex = /\b(\d{3,5}\/SPP\/[0-9A-Za-z./-]+)\b/i;
+      cells.forEach(c => {
+        const txt = (c.innerText || '').trim();
+        const m = txt.match(regex);
+        if (m && !list.includes(m[1]) && list.length < 5) {
+          list.push(m[1]);
+        }
+      });
+
+      // 2. Jika tidak ada di tabel, periksa body text
+      if (list.length === 0 && document.body) {
+        const bodyTxt = document.body.innerText || '';
+        const globalReg = /\b(\d{3,5}\/SPP\/[0-9A-Za-z./-]+)\b/g;
+        let match;
+        while ((match = globalReg.exec(bodyTxt)) !== null) {
+          if (!list.includes(match[1])) {
+            list.push(match[1]);
+          }
+          if (list.length >= 4) break;
+        }
+      }
+    } catch (e) {
+      console.debug('Error detecting page SPPs:', e);
+    }
+    return list;
+  }
+
+  // Deteksi apakah user menanyakan status SPP secara umum tanpa menyertakan nomor spesifik
+  function isGeneralSppInquiry(text) {
+    const t = (text || '').trim().toLowerCase();
+    const generalPatterns = [
+      /^(?:cek|status|pencairan|mau cek|tolong cek|bisa cek)?\s*(?:status)?\s*(?:pencairan)?\s*spp(?:\s*(?:online|manual|desa|tnt|link|dong|min))?$/i,
+      /^(?:cek|status)?\s*(?:status)?\s*pencairan(?:\s*(?:spp|dana|desa))?$/i,
+      /^apakah\s*(?:status)?\s*(?:pencairan)?\s*spp\s*(?:sudah\s*cair|sudah\s*masuk)?\??$/i,
+      /^(?:cek\s*status\s*pencairan\s*spp|cek\s*pencairan\s*spp|cek\s*status\s*spp|cek\s*spp|pencairan\s*spp)$/i
+    ];
+    return generalPatterns.some(p => p.test(t));
+  }
+
+  // Ekstrak nomor SPP / CMS / Kwitansi spesifik (wajib ada angka / pola baku)
+  function extractSppIdentifier(text) {
+    // A. Format baku Siskeudes: 00001/SPP/...
+    const mSpp = text.match(/\b(\d{3,5}\/SPP\/[0-9A-Za-z./-]+)\b/i);
+    if (mSpp) return mSpp[1];
+
+    // B. Format Kode CMS dengan angka: CMS-2026-00123 atau CMS2026001001
+    const mCms = text.match(/\b(CMS[-_0-9A-Za-z]*\d+[-_0-9A-Za-z]*)\b/i);
+    if (mCms && mCms[1].length >= 6) return mCms[1];
+
+    // C. Format Kwitansi dengan angka: KW-1/2026 atau KW-001/2026
+    const mKw = text.match(/\b(KW[-_./0-9A-Za-z]*\d+[-_./0-9A-Za-z]*)\b/i);
+    if (mKw && mKw[1].length >= 4) return mKw[1];
+
+    // D. Format eksplisit dengan keyword pencarian: cek spp 00001/...
+    const mExplicit = text.match(/(?:cek|status|pencairan)\s*(?:status)?\s*(?:pencairan)?\s*(?:spp|cms|kwitansi)\s*[:=]?\s*([0-9A-Za-z/.-]*\d[0-9A-Za-z/.-]*)/i);
+    if (mExplicit && mExplicit[1].length >= 4) {
+      const cand = mExplicit[1];
+      const stopwords = ['pencairan', 'status', 'online', 'manual', 'tnt', 'desa', 'bank', 'kwitansi'];
+      if (!stopwords.includes(cand.toLowerCase())) {
+        return cand;
+      }
+    }
+
+    return null;
+  }
+
+  // Tanya nomor SPP ke pengguna + tawarkan pilihan SPP dari layar aktif jika ada
+  function askForSppNumber(originalText) {
+    if (originalText) {
+      appendMsg('user', originalText);
+    }
+    const pageSpps = getPageSppNumbers();
+
+    let replyHtml = `Silakan ketikkan <b>Nomor SPP</b>, <b>Kode CMS</b>, atau <b>Nomor Kwitansi</b> yang ingin dicek status pencairannya:<br><br>`
+      + `<i>Contoh format:</i><br>`
+      + `• <code>00001/SPP/51.03.01.2001/2026</code><br>`
+      + `• <code>CMS2026001001</code>`;
+
+    if (pageSpps.length > 0) {
+      replyHtml += `<br><br>💡 <b>Atau pilih langsung SPP yang tertera di layar Anda saat ini:</b><div class="ai-quick-chips" style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px;">`;
+      pageSpps.forEach(spp => {
+        replyHtml += `<button type="button" class="ai-chip-btn ai-chip-spp-item" data-spp="${spp}">📋 ${spp}</button>`;
+      });
+      replyHtml += `</div>`;
+    }
+
+    appendMsg('bot', replyHtml);
+    input.placeholder = "Ketik atau pilih no. SPP (00001/SPP/...)...";
+    input.focus();
+  }
+
+  window.__checkSppDirect = function(sppNum) {
+    if (sppNum) {
+      input.value = sppNum;
+      handleSppInquiry(sppNum, sppNum);
+    }
+  };
+
   // Handle Chat Input Form
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -553,22 +671,16 @@
       return;
     }
 
-    // 2. Cek apakah user menanyakan status pencairan SPP / Kode CMS
-    const matchSppPattern = text.match(/\b(\d{3,5}\/SPP\/[0-9A-Za-z./-]+)\b/i)
-      || text.match(/\b(CMS[0-9A-Za-z_-]+)\b/i)
-      || text.match(/\b(KW-[0-9A-Za-z./-]+)\b/i)
-      || text.match(/(?:cek|status|pencairan|cair)\s*(?:status)?\s*(?:pencairan)?\s*(?:spp|cms|kwitansi)?\s*([0-9A-Za-z/.-]{4,})/i);
-
-    if (matchSppPattern) {
-      const sppKey = matchSppPattern[1] || matchSppPattern[0];
-      handleSppInquiry(sppKey, text);
+    // 2. Cek apakah query meminta pengecekan SPP umum tanpa nomor
+    if (isGeneralSppInquiry(text)) {
+      askForSppNumber(text);
       return;
     }
 
-    // 3. Cek apakah tombol atau query meminta pengecekan SPP umum tanpa nomor
-    if (/^(?:cek|status)?\s*(?:status)?\s*pencairan\s*spp$/i.test(text.trim())) {
-      appendMsg('user', text);
-      appendMsg('bot', `Silakan ketikkan <b>Nomor SPP</b>, <b>Kode CMS Siskeudes</b>, atau <b>Nomor Kwitansi</b> yang ingin dicek status pencairannya:<br><br><i>Contoh:</i><br>• <code>00012/SPP/01.2003/2026</code><br>• <code>CMS-2026-00129</code><br>• <code>KW-042/2026</code>`);
+    // 3. Cek apakah user menyertakan nomor SPP / Kode CMS / Kwitansi spesifik
+    const sppKey = extractSppIdentifier(text);
+    if (sppKey) {
+      handleSppInquiry(sppKey, text);
       return;
     }
 
@@ -654,11 +766,11 @@
       const el = document.getElementById(loadingId);
       if (el) el.remove();
 
-      if (data && data.spp_data) {
+      if (data && data.status === 'success' && data.spp_data) {
         const s = data.spp_data;
         const isCair = s.status_pembayaran === 'BERHASIL_CAIR';
-        const badgeBg = isCair ? '#10b981' : '#f59e0b';
-        const badgeText = isCair ? '🟢 SUDAH CAIR / BERHASIL TRANSFER' : '🟡 MENUNGGU VERIFIKASI / PROSES';
+        const badgeBg = s.badge_color === 'success' ? '#10b981' : (s.badge_color === 'danger' ? '#ef4444' : '#f59e0b');
+        const badgeText = s.status_label || (isCair ? '🟢 SUDAH CAIR / BERHASIL TRANSFER' : '🟡 MENUNGGU VERIFIKASI / PROSES');
 
         let html = `
           <div style="font-size: 13px; line-height: 1.45;">
@@ -696,7 +808,20 @@
 
         appendMsg('bot', html);
       } else {
-        appendMsg('bot', `Data SPP <b>${sppKey}</b> tidak ditemukan. Pastikan format nomor SPP atau Kode CMS sudah sesuai.`);
+        const notFoundMsg = (data && data.message) ? data.message : `Data transaksi untuk <b>${sppKey}</b> tidak ditemukan dalam database Siskeudes.`;
+        let notFoundHtml = `
+          <div style="font-size: 13px; line-height: 1.45;">
+            <b>Hasil Pengecekan Status SPP: Tidak Ditemukan</b><br>
+            <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 10px; margin-top: 8px;">
+              <div style="font-weight: 700; color: #b45309; font-family: monospace; margin-bottom: 4px;">🔍 ${sppKey}</div>
+              <div style="font-size: 11.5px; color: #78350f; line-height: 1.5;">${notFoundMsg}</div>
+            </div>
+            <div style="margin-top: 8px; display: flex; gap: 6px;">
+              <button type="button" class="ai-chip-btn ai-chip-issue" onclick="window.__prefillSiskeudesIssue('${sppKey}', '', '', '')">🚨 Butuh Bantuan Teknis? Buat Laporan</button>
+            </div>
+          </div>
+        `;
+        appendMsg('bot', notFoundHtml);
       }
     } catch (err) {
       const el = document.getElementById(loadingId);

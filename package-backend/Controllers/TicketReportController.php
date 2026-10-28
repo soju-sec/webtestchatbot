@@ -324,10 +324,25 @@ class TicketReportController extends Controller
             $potonganPajak = (int) ($realSpp->nilai_potongan ?? 0);
             $nominalNetto = (int) ($realSpp->nilai_terima ?? 0);
 
-            $isCair = ($realSpp->status_pembayaran == 1 || $realSpp->status_pencairan == 1);
-            $statusPembayaran = $isCair ? 'BERHASIL_CAIR' : 'MENUNGGU_VERIFIKASI_SEKDES';
+            $isCair = ($realSpp->status_pembayaran == 1 && $realSpp->status_pencairan == 1);
+            $isVerif = ($realSpp->status_verifikasi == 1);
+
             if ($relatedTicket && $relatedTicket->status === 'open') {
                 $statusPembayaran = 'KENDALA_DILAPORKAN';
+                $statusLabel = 'Kendala Sedang Ditangani Tim Teknis';
+                $badgeColor = 'danger';
+            } elseif ($isCair) {
+                $statusPembayaran = 'BERHASIL_CAIR';
+                $statusLabel = 'Sudah Cair / Berhasil Ditransfer';
+                $badgeColor = 'success';
+            } elseif ($isVerif) {
+                $statusPembayaran = 'MENUNGGU_PENCAIRAN_CMS';
+                $statusLabel = 'Disetujui Sekdes (Menunggu Pencairan di CMS Bank)';
+                $badgeColor = 'warning';
+            } else {
+                $statusPembayaran = 'MENUNGGU_VERIFIKASI_SEKDES';
+                $statusLabel = 'Menunggu Verifikasi & Dokumen Pendukung (SPTJB/SPP2)';
+                $badgeColor = 'warning';
             }
 
             $sppData = [
@@ -337,8 +352,8 @@ class TicketReportController extends Controller
                 'kode_cms_bank'        => "BNK-" . sprintf('%06d', $realSpp->sppid + 100000),
                 'tanggal_transaksi'    => !empty($realSpp->tgl_verifikasi) ? date('d-m-Y H:i:s', strtotime($realSpp->tgl_verifikasi)) : date('d-m-Y H:i:s', strtotime($realSpp->tgl_spp ?? 'now')),
                 'status_pembayaran'    => $statusPembayaran,
-                'status_label'         => $isCair ? 'Sudah Cair / Berhasil Ditransfer' : 'Menunggu Verifikasi Persetujuan',
-                'badge_color'          => $isCair ? 'success' : 'warning',
+                'status_label'         => $statusLabel,
+                'badge_color'          => $badgeColor,
                 'rekening_tujuan'      => $realSpp->rek_bank_desa ?: '101.02.0001',
                 'nama_penerima'        => $realSpp->nm_pemilik ?: 'Rekening Kas Desa Kuta',
                 'bank_tujuan'          => $realSpp->nm_bank_desa ?: 'BPD Bali / Mitra Siskeudes TNT',
@@ -354,58 +369,29 @@ class TicketReportController extends Controller
                 'no_referensi_bank'    => $realSpp->no_ref_bank ?: ('REF-BPD-' . date('Ymd', strtotime($realSpp->tgl_spp ?? 'now'))),
                 'alur_verifikasi'      => [
                     'siskeudes_online' => 'Final (Disetujui)',
-                    'upload_sptjb'     => 'Lengkap',
-                    'upload_spp2'      => 'Lengkap',
-                    'verifikasi_sekdes'=> $realSpp->status_verifikasi == 1 ? 'Selesai (Disetujui)' : 'Sedang Diproses',
-                    'approval_kades'   => $realSpp->status_pencairan == 1 ? 'Selesai (Cair)' : 'Menunggu',
+                    'upload_sptjb'     => !empty($realSpp->filesuratrekomcamat) || $isVerif ? 'Lengkap' : 'Menunggu Unggah',
+                    'upload_spp2'      => $isVerif ? 'Lengkap' : 'Menunggu Unggah',
+                    'verifikasi_sekdes'=> $isVerif ? 'Selesai (Disetujui)' : 'Belum Diverifikasi',
+                    'approval_kades'   => $isCair ? 'Selesai (Cair)' : ($isVerif ? 'Menunggu Eksekusi CMS Bank' : 'Menunggu Verifikasi'),
                 ]
             ];
         } else {
-            // Fallback simulasi deterministik bila data tidak ditemukan di tabel lokal
+            // Data tidak ditemukan di tabel tbspp
             $searchKey = !empty($noSpp) ? $noSpp : (!empty($kodeCms) ? $kodeCms : $noKwitansi);
-            
-            $hashNum = abs(crc32($searchKey));
-            $isCair = ($hashNum % 3) !== 0; // Sebagian besar berhasil cair
-            
-            $statusPembayaran = $isCair ? 'BERHASIL_CAIR' : 'MENUNGGU_VERIFIKASI_SEKDES';
-            if ($relatedTicket && $relatedTicket->status === 'open') {
-                $statusPembayaran = 'KENDALA_DILAPORKAN';
-            }
-
-            $nominalBruto = 15000000 + (($hashNum % 50) * 100000);
-            $potonganPajak = (int) round($nominalBruto * 0.11);
-            $nominalNetto = $nominalBruto - $potonganPajak;
-
-            $sppData = [
-                'no_spp'               => $noSpp ?: "000" . ($hashNum % 900 + 100) . "/SPP/01.2003/{$tahunAnggaran}",
-                'no_kwitansi'          => $noKwitansi ?: "KW-" . ($hashNum % 9000 + 1000) . "/{$tahunAnggaran}",
-                'kode_cms_siskeudes'   => $kodeCms ?: "CMS-{$tahunAnggaran}-" . sprintf('%05d', $hashNum % 99999),
-                'kode_cms_bank'        => "BNK-" . sprintf('%06d', $hashNum % 899999 + 100000),
-                'tanggal_transaksi'    => date('d-m-Y H:i:s', time() - (($hashNum % 72) * 3600)),
-                'status_pembayaran'    => $statusPembayaran,
-                'status_label'         => $isCair ? 'Sudah Cair / Berhasil Ditransfer' : 'Menunggu Verifikasi Persetujuan',
-                'badge_color'          => $isCair ? 'success' : 'warning',
-                'rekening_tujuan'      => '120.02.04.' . sprintf('%06d', $hashNum % 999999),
-                'nama_penerima'        => 'Rekening Kas Desa / Rekanan ' . ($namaDesa ?: 'Desa'),
-                'bank_tujuan'          => 'Bank BPD / Bank Daerah Mitra Siskeudes TNT',
-                'uraian_belanja'       => 'Belanja Operasional & Penatausahaan Keuangan Desa ' . ($namaDesa ? "Desa {$namaDesa}" : ''),
-                'nominal_bruto'        => $nominalBruto,
-                'nominal_bruto_format' => 'Rp ' . number_format($nominalBruto, 0, ',', '.'),
-                'potongan_pajak'       => $potonganPajak,
-                'potongan_pajak_format'=> 'Rp ' . number_format($potonganPajak, 0, ',', '.'),
-                'nominal_netto'        => $nominalNetto,
-                'nominal_netto_format' => 'Rp ' . number_format($nominalNetto, 0, ',', '.'),
-                'status_pajak'         => 'ID Billing Terbayar Otomatis melalui CMS Bank Desa',
-                'id_billing'           => '81' . sprintf('%013d', $hashNum % 9999999999999),
-                'no_referensi_bank'    => 'FT' . date('Ymd') . sprintf('%06d', $hashNum % 999999),
-                'alur_verifikasi'      => [
-                    'siskeudes_online' => 'Final (Disetujui)',
-                    'upload_sptjb'     => 'Lengkap',
-                    'upload_spp2'      => 'Lengkap',
-                    'verifikasi_sekdes'=> $isCair ? 'Selesai' : 'Sedang Diproses',
-                    'approval_kades'   => $isCair ? 'Selesai' : 'Menunggu',
-                ]
-            ];
+            return response()->json([
+                'status'    => 'not_found',
+                'message'   => "Data transaksi untuk [{$searchKey}] tidak ditemukan dalam sistem Siskeudes TNT" . ($namaDesa ? " ({$namaDesa})" : '') . ". Mohon periksa kembali nomor SPP atau pastikan SPP telah difinalkan di Siskeudes Online.",
+                'query'     => [
+                    'no_spp'         => $noSpp ?: null,
+                    'kode_cms'       => $kodeCms ?: null,
+                    'no_kwitansi'    => $noKwitansi ?: null,
+                    'kabupaten'      => $kabupaten ?: null,
+                    'nama_desa'      => $namaDesa ?: null,
+                    'tahun_anggaran' => $tahunAnggaran,
+                ],
+                'spp_data'  => null,
+                'related_ticket' => $relatedTicket,
+            ], 200);
         }
 
         $responsePayload = [
