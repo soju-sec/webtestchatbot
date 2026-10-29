@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Siskeudes TNT & Transaksi Non-Tunai</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #1e293b;
+      padding: 20px;
+    }
+    .login-card {
+      background: #ffffff;
+      width: 100%;
+      max-width: 440px;
+      padding: 36px 32px;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+      position: relative;
+    }
+    .login-header {
+      text-align: center;
+      margin-bottom: 26px;
+    }
+    .login-logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: #eff6ff;
+      border: 2px solid #2563eb;
+      padding: 6px;
+      margin-bottom: 12px;
+      object-fit: contain;
+    }
+    .login-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 0 0 6px 0;
+    }
+    .login-subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin: 0;
+    }
+    .alert-info-box {
+      background: #eff6ff;
+      border-left: 4px solid #2563eb;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #1e40af;
+      margin-bottom: 20px;
+      line-height: 1.45;
+    }
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 13.5px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+    }
+    .form-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12.5px;
+      margin-bottom: 22px;
+    }
+    .forgot-link {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .forgot-link:hover { text-decoration: underline; }
+    .btn-login {
+      width: 100%;
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      padding: 12px;
+      font-size: 14.5px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-login:hover { background: #1d4ed8; }
+    
+    .login-footer-help {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid #f1f5f9;
+      text-align: center;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .btn-help-login {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #991b1b;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: all 0.2s;
+    }
+    .btn-help-login:hover {
+      background: #fee2e2;
+    }
+    .back-nav {
+      margin-top: 18px;
+      font-size: 12.5px;
+    }
+    .back-nav a {
+      color: #93c5fd;
+      text-decoration: none;
+    }
+    .back-nav a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <div class="login-card">
+    <div class="login-header">
+      <img src="./assets/logo-siskeudes-tnt.png" alt="Siskeudes TNT" class="login-logo" onerror="this.src='https://via.placeholder.com/64?text=TNT'">
+      <h1 class="login-title">Siskeudes-Link TNT</h1>
+      <p class="login-subtitle">Aplikasi Transaksi Non-Tunai Kas Desa & Perbankan</p>
+    </div>
+
+    <div class="alert-info-box">
+      🛡️ <b>Mode Publik / Belum Login:</b> Chatbot otomatis mengaktifkan <i>Mode Bantuan Login</i>. Anda dapat melaporkan kendala login atau akun terkunci tanpa perlu login terlebih dahulu!
+    </div>
+
+    <form onsubmit="event.preventDefault(); alert('Ini adalah halaman simulasi login.');">
+      <div class="form-group">
+        <label class="form-label">Email / Nama Pengguna:</label>
+        <input type="text" class="form-input" placeholder="operator@desa.id atau kaur_keuangan" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Kata Sandi:</label>
+        <input type="password" class="form-input" placeholder="••••••••" required />
+      </div>
+
+      <div class="form-actions">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #475569;">
+          <input type="checkbox" /> Ingat saya
+        </label>
+        <a href="#" class="forgot-link" onclick="if(window.__openLoginIssueForm) window.__openLoginIssueForm(); return false;">Lupa Password?</a>
+      </div>
+
+      <button type="submit" class="btn-login">Masuk ke Sistem</button>
+    </form>
+
+    <div class="login-footer-help">
+      <div>Mengalami kendala akun terkunci atau tidak bisa masuk?</div>
+      <button type="button" class="btn-help-login" onclick="if(window.__openLoginIssueForm) window.__openLoginIssueForm();">
+        🔑 Lapor Kendala Login ke Helpdesk IT
+      </button>
+    </div>
+  </div>
+
+  <div class="back-nav">
+    <a href="index.html">← Kembali ke Demo Dashboard (Mode Sudah Login)</a>
+  </div>
+
+  <!-- Embed Widget Khusus Mode Login (data-mode="login") -->
+  <script 
+    src="./chat-widget.js" 
+    data-mode="login"
+    data-webhook="http://localhost:5678/webhook/chat-entry" 
+    data-backend-url="http://127.0.0.1:8090"
+    data-bot-name="Helpdesk Login Siskeudes TNT">
+  </script>
+</body>
+</html>

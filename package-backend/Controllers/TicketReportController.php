@@ -65,6 +65,16 @@ class TicketReportController extends Controller
 
         // 1. Ekstrak dan Normalisasi Nomor Telepon Pelapor
         $rawPhone = $data['reporter_phone'] ?? $data['no_wa'] ?? $data['phone'] ?? null;
+        if (empty($rawPhone)) {
+            $candidateUser = $data['user_id'] ?? '';
+            $digitsUser = preg_replace('/[^0-9]/', '', $candidateUser);
+            if (strlen($digitsUser) >= 10 && (str_starts_with($digitsUser, '08') || str_starts_with($digitsUser, '628') || str_starts_with($digitsUser, '8'))) {
+                $rawPhone = $candidateUser;
+            } elseif (!empty($data['description']) && preg_match('/(?:\+?62|0)8[0-9]{8,12}/', $data['description'], $pm)) {
+                $rawPhone = $pm[0];
+            }
+        }
+
         $cleanPhone = null;
         if (!empty($rawPhone)) {
             $digits = preg_replace('/[^0-9]/', '', $rawPhone);
@@ -524,10 +534,16 @@ class TicketReportController extends Controller
         $comments = $request->input('issue.fields.comment.comments', []);
         if (!empty($comments) && is_array($comments)) {
             $lastComment = end($comments);
-            $resolutionNotes = $lastComment['body'] ?? null;
+            $rawBody = $lastComment['body'] ?? null;
+            $resolutionNotes = class_exists(JiraService::class)
+                ? JiraService::extractPlainTextFromAdf($rawBody)
+                : (is_string($rawBody) ? $rawBody : null);
         }
         if (empty($resolutionNotes)) {
-            $resolutionNotes = $request->input('comment.body');
+            $rawBody = $request->input('comment.body');
+            $resolutionNotes = class_exists(JiraService::class)
+                ? JiraService::extractPlainTextFromAdf($rawBody)
+                : (is_string($rawBody) ? $rawBody : null);
         }
         if (empty($resolutionNotes) && !empty($resolutionName)) {
             $resolutionNotes = "Kendala diselesaikan dengan resolusi: {$resolutionName}";

@@ -453,7 +453,7 @@ class ChatbotNotificationService
         $userName     = !empty($ticket['user_name']) && $ticket['user_name'] !== 'pelapor-web'
             ? $ticket['user_name']
             : ($desa !== '-' ? "Bpk/Ibu Kaur Keuangan Desa {$desa}" : "Bpk/Ibu Operator Siskeudes");
-        $featureName  = $ticket['feature_name'] ?? 'Siskeudes-Link TNT / CMS Bank';
+        $featureName  = $ticket['feature_name'] ?? 'Siskeudes TNT / CMS Bank';
         $categoryName = self::formatCategory($ticket['category'] ?? 'siskeudes_tnt');
         $createdAt    = date('d M Y, H:i') . ' WIB';
 
@@ -483,7 +483,7 @@ class ChatbotNotificationService
             . "🔍 *Pantau Progres Penanganan (Bebas Kuota WA):*\n"
             . "Untuk melihat timeline investigasi teknisi tanpa menunggu balasan chat, silakan buka tautan mandiri berikut:\n"
             . "👉 {$magicLink}\n\n"
-            . "_(Atau Anda dapat mengeceknya kapan saja di live chat Siskeudes-Link dengan menyebutkan No. Tiket)_{$ticketNumber}_\n\n"
+            . "_(Atau Anda dapat mengeceknya kapan saja di live chat Siskeudes TNT dengan menyebutkan No. Tiket)_{$ticketNumber}_\n\n"
             . "ℹ️ *Pemberitahuan hasil penyelesaian akan dikirimkan otomatis ke WhatsApp ini begitu kendala terselesaikan oleh teknisi di Jira.*";
 
         return self::sendWhatsAppMessage($target, $msg);
@@ -512,7 +512,7 @@ class ChatbotNotificationService
             : ($desa !== '-' ? "Bpk/Ibu Kaur Keuangan Desa {$desa}" : "Bpk/Ibu Operator Siskeudes");
         $resolutionNotes = !empty($ticket['resolution_notes'])
             ? trim($ticket['resolution_notes'])
-            : 'Kendala verifikasi / transaksi pada Siskeudes-Link TNT telah disesuaikan dan diverifikasi tuntas oleh tim teknis.';
+            : 'Kendala verifikasi / transaksi pada Siskeudes TNT telah disesuaikan dan diverifikasi tuntas oleh tim teknis.';
         $resolvedAt      = date('d M Y, H:i') . ' WIB';
 
         $msg = "✅ *[HASIL PENANGANAN KENDALA SISKEUDES-LINK SELESAI]*\n\n"
@@ -527,7 +527,7 @@ class ChatbotNotificationService
             . "🕒 *Waktu Selesai*: {$resolvedAt}\n\n"
             . "🛠️ *Rincian Solusi & Tindak Lanjut:*\n"
             . "\"_{$resolutionNotes}_\"\n\n"
-            . "Silakan lakukan verifikasi atau proses kembali transaksi pada aplikasi Siskeudes-Link / CMS Bank Desa Anda.\n"
+            . "Silakan lakukan verifikasi atau proses kembali transaksi pada aplikasi Siskeudes TNT / CMS Bank Desa Anda.\n"
             . "Terima kasih atas kerja sama dan laporannya! 🙏";
 
         return self::sendWhatsAppMessage($target, $msg);
@@ -545,7 +545,7 @@ class ChatbotNotificationService
             'pajak_koreksi_id_billing' => 'Koreksi ID Billing Pajak & NTPN',
             'pembayaran_gagal_bank'     => 'Pembayaran Gagal / Reject CMS Bank',
             'inkonsistensi_kode_cms'    => 'Selisih Kode CMS Siskeudes TNT vs CMS Bank',
-            'siskeudes_tnt'             => 'Kendala Siskeudes-Link TNT & CMS Bank',
+            'siskeudes_tnt'             => 'Kendala Siskeudes TNT & CMS Bank',
             'fitur_tidak_dapat_diakses' => 'Fitur Tidak Dapat Diakses',
             'bug_error'                 => 'Bug / Kesalahan Sistem',
             'transaksi'                 => 'Kendala Transaksi / Pembayaran',

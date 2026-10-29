@@ -14,6 +14,10 @@ class ChatbotJiraCommand extends Command
      */
     protected $signature = 'chatbot:jira
                             {--test : Uji koneksi ke Jira Cloud instance (imtekservice.atlassian.net)}
+                            {--sync : Sinkronkan status tiket Jira ke database lokal & kirim WA Solved otomatis}
+                            {--watch : Mode realtime polling: sinkronkan Jira terus-menerus setiap interval detik}
+                            {--interval=10 : Interval detik untuk mode --watch (default: 10 detik)}
+                            {--register-webhook= : Daftarkan webhook URL publik ke Jira Cloud API}
                             {--create-test-issue : Buat satu issue uji coba di project SUP}
                             {--issue= : Tampilkan detail issue Jira tertentu (misal: SUP-1)}';
 
@@ -22,7 +26,7 @@ class ChatbotJiraCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Kelola dan uji integrasi Jira Service Management (Proyek SUP)';
+    protected $description = 'Kelola dan uji integrasi Jira Service Management serta sinkronisasi status Solved realtime';
 
     /**
      * Execute the console command.
@@ -50,6 +54,77 @@ class ChatbotJiraCommand extends Command
                 ['Status Konfigurasi', $isConfigured ? '<fg=green;options=bold>AKTIF & SIAP</>' : '<fg=yellow>KREDENSIAL BELUM LENGKAP</>'],
             ]
         );
+
+        // 0. Daftarkan Webhook ke Jira Cloud
+        $webhookTarget = $this->option('register-webhook');
+        if (!empty($webhookTarget)) {
+            $webhookUrl = rtrim($webhookTarget, '/') . '/api/v1/jira/webhook';
+            $this->info("Mendaftarkan webhook ke Jira Cloud: {$webhookUrl}...");
+
+            $email = JiraService::getUserEmail();
+            $token = JiraService::getApiToken();
+            $host  = JiraService::getBaseUrl();
+
+            $payload = [
+                'name'    => 'Chatbot Realtime Solved Webhook',
+                'url'     => $webhookUrl,
+                'events'  => ['jira:issue_updated', 'jira:issue_created'],
+                'filters' => [
+                    'issue-related-events-section' => "project = {$projectKey}"
+                ],
+                'excludeIssueDetails' => false
+            ];
+
+            $res = \Illuminate\Support\Facades\Http::withBasicAuth($email, $token)
+                ->post("{$host}/rest/webhooks/1.0/webhook", $payload);
+
+            if ($res->successful()) {
+                $this->info("✓ BERHASIL MENDAFTARKAN WEBHOOK KE JIRA CLOUD!");
+                $this->line("  URL Webhook : <fg=green;options=bold>{$webhookUrl}</>");
+                $this->line("  Respon Jira : " . $res->body());
+            } else {
+                $this->error("✗ GAGAL DAFTARKAN WEBHOOK: HTTP " . $res->status());
+                $this->line("  Respon: " . $res->body());
+            }
+            return 0;
+        }
+
+        // 0.1 Mode Realtime Polling Watcher
+        if ($this->option('watch')) {
+            $interval = max(3, (int) $this->option('interval'));
+            $this->info("🚀 Memulai background watcher sinkronisasi Jira SUP (Setiap {$interval} detik)...");
+            $this->line("<comment>Tekan Ctrl+C untuk menghentikan.</comment>");
+
+            while (true) {
+                $timeStr = now()->format('H:i:s');
+                $syncRes = JiraService::syncIssuesWithLocalDb();
+                $synced = $syncRes['synced_count'] ?? 0;
+                $notified = $syncRes['solved_notified_count'] ?? 0;
+
+                if ($notified > 0) {
+                    $this->line("[<fg=cyan>{$timeStr}</>] <fg=green;options=bold>✓ {$notified} tiket SOLVED terdeteksi! Pesan WA #2 sukses dikirim.</>");
+                } else {
+                    $this->line("[<fg=gray>{$timeStr}</>] Sinkronisasi aktif ({$synced} tiket dipantau). Belum ada update Solved baru.");
+                }
+
+                sleep($interval);
+            }
+            return 0;
+        }
+
+        // 0.2 Mode Sinkronisasi Tunggal
+        if ($this->option('sync')) {
+            $this->info("Menyinkronkan tiket dari Jira Cloud Project {$projectKey}...");
+            $syncRes = JiraService::syncIssuesWithLocalDb();
+            if ($syncRes['success']) {
+                $this->info("✓ SINKRONISASI BERHASIL!");
+                $this->line("  Total tiket disinkronkan   : <fg=green;options=bold>{$syncRes['synced_count']}</>");
+                $this->line("  Notifikasi Solved terkirim : <fg=cyan;options=bold>{$syncRes['solved_notified_count']}</>");
+            } else {
+                $this->error("✗ SINKRONISASI GAGAL: " . ($syncRes['message'] ?? 'Unknown error'));
+            }
+            return 0;
+        }
 
         // 1. Cek Issue Tertentu
         $issueKey = $this->option('issue');

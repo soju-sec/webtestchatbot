@@ -62,7 +62,7 @@ class JiraService
     /**
      * Membuat Basic Auth Header untuk Atlassian Jira Cloud REST API.
      */
-    protected static function getAuthHeaders(): array
+    public static function getAuthHeaders(): array
     {
         $email = self::getUserEmail();
         $token = self::getApiToken();
@@ -201,17 +201,13 @@ class JiraService
         $timeStr      = date('Y-m-d H:i:s') . ' WIB';
 
         // 1. Tentukan Priority Jira berdasarkan Urgensi
-        $priorityMap = [
-            'darurat'  => 'Highest',
-            'critical' => 'Highest',
-            'tinggi'   => 'High',
-            'high'     => 'High',
-            'sedang'   => 'Medium',
-            'medium'   => 'Medium',
-            'rendah'   => 'Low',
-            'low'      => 'Low',
-        ];
-        $jiraPriority = $priorityMap[$urgency] ?? 'High';
+        $jiraPriority = match ($urgency) {
+            'darurat', 'critical' => 'Highest',
+            'tinggi', 'high'       => 'High',
+            'sedang', 'medium'     => 'Medium',
+            'rendah', 'low'        => 'Low',
+            default                => 'High',
+        };
 
         // 2. Tentukan Summary Singkat yang Informatif
         $summary = "[{$ticketNumber}] Kendala {$featureName}: " . mb_substr($description, 0, 70);
@@ -219,43 +215,18 @@ class JiraService
             $summary .= '...';
         }
 
-        // Parameter Siskeudes TNT & CMS Bank
-        $kabupaten    = $ticket['kabupaten'] ?? null;
-        $desa         = $ticket['nama_desa'] ?? null;
-        $reporterPhone= $ticket['reporter_phone'] ?? null;
-        $noSpp        = $ticket['no_spp'] ?? null;
-        $noKwitansi   = $ticket['no_kwitansi'] ?? null;
-        $kodeSiskeudes= $ticket['kode_cms_siskeudes'] ?? null;
-        $kodeBank     = $ticket['kode_cms_bank'] ?? null;
-
-        $siskeudesSection = '';
-        if (!empty($kabupaten) || !empty($desa) || !empty($noSpp) || !empty($noKwitansi) || !empty($kodeSiskeudes) || !empty($kodeBank) || !empty($reporterPhone)) {
-            $siskeudesSection = "----\n"
-                . "h4. 🏛️ Parameter Transaksi Siskeudes TNT & CMS Bank:\n"
-                . (!empty($kabupaten) ? "* *Kabupaten:* {$kabupaten}\n" : '')
-                . (!empty($desa) ? "* *Nama Desa:* {$desa}\n" : '')
-                . (!empty($reporterPhone) ? "* *No. WhatsApp Pelapor:* `{$reporterPhone}`\n" : '')
-                . (!empty($noSpp) ? "* *No. SPP:* {{ {$noSpp} }}\n" : '')
-                . (!empty($noKwitansi) ? "* *No. Kwitansi:* {{ {$noKwitansi} }}\n" : '')
-                . (!empty($kodeSiskeudes) ? "* *Kode CMS Siskeudes TNT:* {{ {$kodeSiskeudes} }}\n" : '')
-                . (!empty($kodeBank) ? "* *Kode CMS App Bank:* {{ {$kodeBank} }}\n" : '')
-                . "\n";
-        }
-
         // 3. Susun Deskripsi Lengkap dengan Header & Format Jira Rapi
         $jiraDescription = "h3. 🚨 Laporan Kendala Sistem dari Chatbot Pelanggan\n\n"
             . "* *Nomor Tiket Chatbot:* {{#{$ticketNumber}}}\n"
             . "* *Pelapor:* `{$userId}`{$userName}\n"
-            . (!empty($reporterPhone) ? "* *WhatsApp Pelapor:* `{$reporterPhone}`\n" : '')
             . "* *Fitur Terkendala:* *{$featureName}*\n"
             . "* *Kategori Masalah:* {$category}\n"
             . "* *Tingkat Urgensi:* *{$jiraPriority}* (Input: {$urgency})\n"
             . "* *ID Percakapan:* `{$conversation}`\n"
             . "* *Kanal Pelaporan:* `{$channel}`\n"
             . "* *Waktu Kejadian:* {$timeStr}\n\n"
-            . $siskeudesSection
             . "----\n"
-            . "h4. 📝 Rincian Masalah / Keterangan Kendala:\n"
+            . "h4. 📝 Rincian Masalah Pelanggan:\n"
             . "{quote}\n{$description}\n{quote}\n\n"
             . "----\n"
             . "_Tiket ini dibuat secara otomatis oleh Universal AI Chatbot System._";
@@ -471,5 +442,250 @@ class JiraService
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Helper untuk mengekstrak teks biasa dari Atlassian Document Format (ADF).
+     */
+    public static function extractPlainTextFromAdf($node): string
+    {
+        if (is_string($node)) return $node;
+        if (!is_array($node)) return '';
+        $text = $node['text'] ?? '';
+        if (!empty($node['content']) && is_array($node['content'])) {
+            foreach ($node['content'] as $child) {
+                $text .= ' ' . self::extractPlainTextFromAdf($child);
+            }
+        }
+        return trim($text);
+    }
+
+    /**
+     * Mengambil daftar issues dari Jira Cloud menggunakan REST API v3 search JQL.
+     */
+    public static function fetchIssues(?string $jql = null, int $maxResults = 50): array
+    {
+        if (!self::isConfigured()) {
+            return [
+                'success' => false,
+                'message' => 'Kredensial Jira belum dikonfigurasi.',
+                'issues'  => [],
+            ];
+        }
+
+        $baseUrl    = self::getBaseUrl();
+        $projectKey = self::getProjectKey();
+        $query      = $jql ?: "project = {$projectKey} ORDER BY created DESC";
+
+        try {
+            $response = Http::withHeaders(self::getAuthHeaders())
+                ->timeout(15)
+                ->post("{$baseUrl}/rest/api/3/search/jql", [
+                    'jql'        => $query,
+                    'maxResults' => $maxResults,
+                    'fields'     => [
+                        'summary',
+                        'status',
+                        'priority',
+                        'created',
+                        'updated',
+                        'issuetype',
+                        'reporter',
+                        'assignee',
+                        'description',
+                        'labels',
+                        'comment',
+                        'resolution',
+                        'resolutiondate',
+                    ],
+                ]);
+
+            if (!$response->successful()) {
+                return [
+                    'success' => false,
+                    'status'  => $response->status(),
+                    'message' => 'Gagal mengambil issues dari Jira: HTTP ' . $response->status(),
+                    'issues'  => [],
+                ];
+            }
+
+            $data = $response->json();
+            $rawIssues = $data['issues'] ?? [];
+
+            $normalized = [];
+            foreach ($rawIssues as $issue) {
+                $key = $issue['key'] ?? ('ID-' . ($issue['id'] ?? ''));
+                $fields = $issue['fields'] ?? [];
+                $descRaw = $fields['description'] ?? null;
+                $plainDesc = self::extractPlainTextFromAdf($descRaw);
+
+                // Ekstrak resolusi dan komentar terakhir jika ada
+                $resName = $fields['resolution']['name'] ?? null;
+                $lastCommentText = null;
+                $comments = $fields['comment']['comments'] ?? [];
+                if (!empty($comments) && is_array($comments)) {
+                    $last = end($comments);
+                    $lastCommentText = self::extractPlainTextFromAdf($last['body'] ?? null);
+                }
+                $resolutionNotes = $lastCommentText ?: ($resName ? "Resolusi Jira: {$resName}" : null);
+
+                $normalized[] = [
+                    'id'               => $issue['id'] ?? '',
+                    'key'              => $key,
+                    'summary'          => $fields['summary'] ?? '',
+                    'description'      => $plainDesc ?: ($fields['summary'] ?? ''),
+                    'status'           => $fields['status']['name'] ?? 'Open',
+                    'status_category'  => $fields['status']['statusCategory']['key'] ?? 'new',
+                    'priority'         => $fields['priority']['name'] ?? 'Medium',
+                    'issue_type'       => $fields['issuetype']['name'] ?? 'Task',
+                    'reporter'         => $fields['reporter']['displayName'] ?? ($fields['reporter']['emailAddress'] ?? 'Pelanggan'),
+                    'reporter_email'   => $fields['reporter']['emailAddress'] ?? '',
+                    'assignee'         => $fields['assignee']['displayName'] ?? 'Unassigned',
+                    'created'          => $fields['created'] ?? null,
+                    'updated'          => $fields['updated'] ?? null,
+                    'resolution_notes' => $resolutionNotes,
+                    'resolution_date'  => $fields['resolutiondate'] ?? null,
+                    'browse_url'       => "{$baseUrl}/browse/{$key}",
+                ];
+            }
+
+            return [
+                'success' => true,
+                'total'   => count($normalized),
+                'issues'  => $normalized,
+            ];
+        } catch (\Throwable $e) {
+            Log::error('[JiraService] fetchIssues exception: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'issues'  => [],
+            ];
+        }
+    }
+
+    /**
+     * Sinkronisasi issues dari Jira Cloud ke tabel lokal `chatbot_tickets`.
+     * Jika tiket berstatus 'Done' / 'Resolved' dan pelapor belum menerima notifikasi,
+     * otomatis memicu Pesan WhatsApp #2 (Solved) secara real-time ke nomor pelapor.
+     */
+    public static function syncIssuesWithLocalDb(): array
+    {
+        $fetchRes = self::fetchIssues(null, 50);
+        if (!$fetchRes['success']) {
+            return $fetchRes;
+        }
+
+        $issues = $fetchRes['issues'];
+        $syncedCount = 0;
+        $solvedNotifiedCount = 0;
+        $now = now();
+
+        foreach ($issues as $issue) {
+            $key = $issue['key'];
+
+            // Cek apakah tiket lokal dengan jira_key ini sudah ada
+            $existing = \Illuminate\Support\Facades\DB::table('chatbot_tickets')
+                ->where('jira_key', $key)
+                ->first();
+
+            if (!$existing) {
+                // Cek fallback pencarian di kolom metadata
+                $existing = \Illuminate\Support\Facades\DB::table('chatbot_tickets')
+                    ->where('metadata', 'like', "%{$key}%")
+                    ->first();
+            }
+
+            // Petakan urgency dari prioritas Jira
+            $pName = strtolower($issue['priority'] ?? 'medium');
+            $urgency = match ($pName) {
+                'highest', 'critical' => 'darurat',
+                'high'               => 'tinggi',
+                'low', 'lowest'      => 'rendah',
+                default              => 'sedang',
+            };
+
+            // Petakan status
+            $jiraStatusLower = strtolower($issue['status'] ?? 'open');
+            $isResolved = in_array($jiraStatusLower, ['done', 'resolved', 'closed', 'selesai', 'complete', 'completed'])
+                || !empty($issue['resolution_date']);
+
+            $localStatus = 'open';
+            if ($isResolved) {
+                $localStatus = 'resolved';
+            } elseif (str_contains($jiraStatusLower, 'progress') || str_contains($jiraStatusLower, 'investigat')) {
+                $localStatus = 'investigating';
+            }
+
+            // Petakan nama fitur dari summary jika ada format: [TCK-...] Kendala Fitur: ...
+            $summary = $issue['summary'] ?? '';
+            $featureName = 'Fitur Sistem';
+            if (preg_match('/Kendala\s+([^:]+):/i', $summary, $m)) {
+                $featureName = trim($m[1]);
+            }
+
+            $payload = [
+                'jira_key'     => $key,
+                'jira_url'     => $issue['browse_url'],
+                'feature_name' => $featureName,
+                'description'  => $issue['description'] ?: $summary,
+                'urgency'      => $urgency,
+                'status'       => $localStatus,
+                'user_name'    => $issue['reporter'],
+                'channel'      => $existing ? $existing->channel : 'jira-cloud',
+                'updated_at'   => $now,
+            ];
+
+            if (!empty($issue['resolution_notes'])) {
+                $payload['resolution_notes'] = $issue['resolution_notes'];
+            }
+
+            if ($existing) {
+                // 🚀 REALTIME WA PESAN #2 SOLVED TRIGGER
+                $shouldSendWaSolved = $isResolved
+                    && empty($existing->resolved_notified_at)
+                    && !empty($existing->reporter_phone);
+
+                if ($shouldSendWaSolved) {
+                    $ticketArray = (array) $existing;
+                    $ticketArray['status'] = 'resolved';
+                    if (!empty($issue['resolution_notes'])) {
+                        $ticketArray['resolution_notes'] = $issue['resolution_notes'];
+                    }
+
+                    try {
+                        $waResult = \App\Services\ChatbotNotificationService::sendTicketResolvedToReporter($ticketArray);
+                        if (!empty($waResult['success'])) {
+                            $payload['resolved_notified_at'] = $now;
+                            $solvedNotifiedCount++;
+                            Log::info("[JiraService:Sync] Realtime WA Solved sukses dikirim ke {$existing->reporter_phone} (#{$existing->ticket_number}, Jira: {$key})");
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning("[JiraService:Sync] Exception saat kirim WA Solved: " . $e->getMessage());
+                    }
+                }
+
+                \Illuminate\Support\Facades\DB::table('chatbot_tickets')
+                    ->where('id', $existing->id)
+                    ->update($payload);
+            } else {
+                $ticketNum = 'TCK-' . str_replace('-', '', $key);
+                $payload['ticket_number'] = $ticketNum;
+                $payload['user_id'] = $issue['reporter_email'] ?: 'jira-user';
+                $payload['category'] = 'fitur_tidak_dapat_diakses';
+                $payload['created_at'] = !empty($issue['created']) ? date('Y-m-d H:i:s', strtotime($issue['created'])) : $now;
+
+                \Illuminate\Support\Facades\DB::table('chatbot_tickets')->insert($payload);
+            }
+
+            $syncedCount++;
+        }
+
+        return [
+            'success'               => true,
+            'message'               => "Berhasil menyinkronkan {$syncedCount} tiket dari Jira Cloud Project SUP.",
+            'synced_count'          => $syncedCount,
+            'solved_notified_count' => $solvedNotifiedCount,
+        ];
     }
 }

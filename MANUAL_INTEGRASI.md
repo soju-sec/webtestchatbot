@@ -573,21 +573,50 @@ Endpoint `/api/v1/ai/manifest` akan otomatis menyajikan template ini ke n8n orch
 
 ---
 
-### 13.5. Auto-Detect User Session (2 Lapis Pengamanan)
+### 13.5. Auto-Detect User Session & Dual-Mode (Login vs Dashboard)
 
-Untuk menghindari tiket anonim yang membingungkan konsultan (*"Ini tiket dari akun siapa?"*), sistem menerapkan 2 lapis identifikasi otomatis:
-1. **Lapis 1 (Client-side di `chat-widget.js`):** Membaca dataset Inertia.js `document.getElementById('app').dataset.page` ➔ mengekstrak `props.auth.user.name` & `props.auth.user.id`.
-2. **Lapis 2 (Server-side di `app.blade.php`):**
-   ```blade
-   <script 
-       src="/chat-widget.js" 
-       data-webhook="http://127.0.0.1:5678/webhook/chat-entry" 
-       data-user-name="{{ Auth::check() ? Auth::user()->name : '' }}" 
-       data-user-id="{{ Auth::check() ? 'user-' . Auth::id() : 'guest' }}">
-   </script>
-   ```
-3. **Quick Action Chips:** Widget menyajikan shortcut tombol cepat di tampilan awal:
-   `🔑 Bantuan Login`, `📑 Gagal Export`, `📋 Selisih Data`, `📊 Metrik Toko`, `📈 Laporan Revenue`, dan `🚨 Form Lapor Kendala Siskeudes`.
+#### ⚠️ Penyelesaian Paradoks Logika: *"Mau Lapor Kendala Login, tapi Harus Login Dulu?"*
+Sebelumnya, pelaporan kendala *"tidak bisa login"* hanya bisa diakses di chatbot dashboard setelah login—sebuah kontradiksi fatal bagi pengguna yang akunnya terkunci atau lupa kata sandi.
+Untuk mengatasinya, widget mendukung **Dual-Mode Otomatis**:
+
+1. **Mode 1: Halaman Login Publik (`data-mode="login"` atau terdeteksi otomatis)**:
+   - **Form Ringkas Khusus Akun:** Menghilangkan kolom transaksi (SPP, Kwitansi, CMS) yang membingungkan. Hanya meminta Email/Username, No WA, Jenis Kendala (Akun Terkunci, Lupa Password, dll), dan Keterangan.
+   - **Proteksi Data Sensitif:** Fitur pencarian data desa & SPP diblokir otomatis untuk mencegah kebocoran data (*anti-data leakage*).
+   - **SOP Zero-Token:** Panduan SOP kendala login dijawab instan di sisi browser tanpa menguras kuota token Gemini LLM.
+   - **Cara Sematkan di Halaman Login (`login.blade.php`):**
+     ```blade
+     <!-- Pasang di halaman login publik (auth/login.blade.php) -->
+     <script 
+         src="/chat-widget.js" 
+         data-mode="login"
+         data-webhook="http://127.0.0.1:5678/webhook/chat-entry" 
+         data-backend-url="{{ url('/') }}"
+         data-bot-name="Helpdesk Login Siskeudes TNT">
+     </script>
+     ```
+   - Di form login juga dapat ditambahkan tautan cepat yang memicu drawer terbuka langsung:
+     ```html
+     <a href="#" onclick="window.__openLoginIssueForm(); return false;">Lupa Password / Akun Terkunci?</a>
+     ```
+
+2. **Mode 2: Dashboard Internal Siskeudes TNT (`data-mode="dashboard"`)**:
+   - Membaca dataset sesi login aktif:
+     ```blade
+     <!-- Pasang di layout dashboard internal (layouts/app.blade.php) -->
+     <script 
+         src="/chat-widget.js" 
+         data-mode="dashboard"
+         data-webhook="http://127.0.0.1:5678/webhook/chat-entry" 
+         data-backend-url="{{ url('/') }}"
+         data-user-name="{{ Auth::user()->name }}" 
+         data-user-id="user-{{ Auth::id() }}"
+         data-kabupaten="{{ session('kabupaten', 'Kab. Bogor') }}"
+         data-desa="{{ session('desa', 'Desa Sukamaju') }}"
+         data-tahun="{{ session('tahun', date('Y')) }}">
+     </script>
+     ```
+   - **Dual-Tab Drawer:** Pengguna di dalam dashboard tetap dapat memilih antara tab *"🔑 Kendala Login"* (misal untuk akun staf desa lain) atau tab *"🏛️ Transaksi Siskeudes TNT"* (form lengkap SPP, Kwitansi, CMS Bank).
+   - **Quick Action Chips:** Widget menyajikan shortcut tombol cepat: `🔑 Bantuan Login`, `💸 Cek Pencairan SPP`, `📋 SOP Verifikasi SPP`, `🔴 Solusi Akun Merah`, `📑 Koreksi ID Billing`, dan `❌ Menu Pembayaran Gagal`.
 
 ---
 
@@ -638,9 +667,9 @@ Saat form drawer dibuka, kolom **Kabupaten** dan **Nama Desa** langsung terisi o
 
 ### 🔍 6. Endpoint Pengecekan Mandiri Status Pencairan SPP (Read-Only API):
 - **Endpoint**: `GET /api/v1/siskeudes/spp/status?no_spp={no_spp}&kabupaten={kab}&nama_desa={desa}&tahun={tahun}`
-- **Fungsi**: Membaca data pencairan SPP langsung dari API Siskeudes-Link / CMS Bank Desa sesuai **Manual Book Kemendagri / BPKP (Gambar 2.12)**:
+- **Fungsi**: Membaca data pencairan SPP langsung dari API Siskeudes TNT / CMS Bank Desa sesuai **Manual Book Kemendagri / BPKP (Gambar 2.12)**:
   - Nomor Bukti / No. SPP & No. Kwitansi
-  - Kode CMS Siskeudes-Link & Kode CMS Bank
+  - Kode CMS Siskeudes TNT & Kode CMS Bank
   - Waktu Transaksi & No. Referensi Bank
   - Status Pembayaran: `BERHASIL_CAIR` (🟢) / `MENUNGGU_VERIFIKASI_SEKDES` (🟡)
   - Rekening Penerima Kas Desa / Rekanan
@@ -649,10 +678,36 @@ Saat form drawer dibuka, kolom **Kabupaten** dan **Nama Desa** langsung terisi o
   - Alur Verifikasi (Siskeudes Online Final, Upload SPTJB/SPP2, Verifikasi Sekdes, Approval Kades)
   - Dilengkapi tombol eskalasi *"🚨 Ada Masalah pada SPP Ini? Laporkan"* yang langsung mem-prefill nomor SPP ke formulir lapor kendala.
 
-### 📚 7. SOP & Knowledge Base Resmi Siskeudes-Link (Out-of-the-Box):
+### 📚 7. SOP & Knowledge Base Resmi Siskeudes TNT (Out-of-the-Box):
 Tersedia langsung di chat widget dan endpoint AI manifest:
 1. **Verifikasi SPP & Upload Berkas (Hal. 10 Poin D)**: SOP upload SPTJB & SPP2 PDF, input Captcha, konfirmasi teks hijau, dan tombol Setuju untuk penerbitan Kode CMS.
 2. **Solusi Status Akun Merah (Hal. 10 Poin C)**: Rekening/pagu tidak cocok di Siskeudes Online. Pembetulan di menu Penatausahaan ➔ SPP Definitif hingga indikator berubah Hijau.
-3. **Alur SPP Siskeudes Online (Hal. 4 & 10)**: Penjelasan bahwa Siskeudes-Link hanya menarik data SPP yang berstatus **FINAL** (bukan Draft/Baru) dari Siskeudes Online.
+3. **Alur SPP Siskeudes Online (Hal. 4 & 10)**: Penjelasan bahwa Siskeudes TNT hanya menarik data SPP yang berstatus **FINAL** (bukan Draft/Baru) dari Siskeudes Online.
 4. **Pajak & Koreksi ID Billing Kadaluarsa (Hal. 15 & 16)**: Prosedur menu Pajak untuk input ID Billing baru tanpa membatalkan SPP.
 5. **Menu Pembayaran Gagal di CMS Bank Desa (Hal. 6 Menu No. 7)**: Panduan identifikasi transaksi yang ditolak Bank (rekening pasif/dormant, salah nomor rekening, atau saldo kas kurang), serta langkah pembatalan verifikasi untuk perbaikan rekening.
+
+### ⚡ 8. Panduan Eksekusi Real-Time WhatsApp Terima (Pesan #1) & Solved (Pesan #2):
+Untuk memastikan kedua pesan WhatsApp terkirim secara instan dan tanpa jeda:
+1. **Pesan #1 (Tanda Terima & Magic Link)**:
+   - Terpicu secara otomatis begitu formulir drawer widget atau endpoint `POST /api/v1/tickets/public-submit` dieksekusi.
+   - Sistem dilengkapi *Smart Phone Normalization & Fallback*: nomor otomatis dideteksi dari `reporter_phone`, `no_wa`, `phone`, `user_id` (jika berupa no HP), maupun pencarian regex pada teks deskripsi kendala.
+   - Mengembalikan response instan berisi nomor tiket `#TCK-...`, `jira_key` (`SUP-xx`), dan status pengiriman Fonnte Gateway.
+
+2. **Pesan #2 (Hasil Penyelesaian / Solved)**:
+   Tersedia dua opsi arsitektur pengiriman otomatis:
+   - **Opsi A: Realtime Background Watcher (Bekerja di Localhost Maupun Server)**:
+     ```bash
+     # Jalankan watcher sinkronisasi Jira SUP setiap 10 detik (otomatis kirim WA Solved begitu issue berstatus Done)
+     php artisan chatbot:jira --watch --interval=10
+     
+     # Atau jalankan satu kali sinkronisasi manual:
+     php artisan chatbot:jira --sync
+     ```
+   - **Opsi B: Push Webhook Jira Cloud (Bila memiliki Domain Publik / Ngrok)**:
+     ```bash
+     # Daftarkan Webhook URL publik ke Jira Cloud secara otomatis:
+     php artisan chatbot:jira --register-webhook=https://subdomain.domain-anda.com
+     ```
+   - **Auto-Extraction Catatan Solusi Teknisi Jira (ADF Safe)**:
+     Sistem secara otomatis membaca komentar terakhir dan jenis resolusi teknisi dari Jira Cloud (mendukung *Atlassian Document Format / ADF* secara rekursif) dan menyertakannya ke dalam isi WhatsApp Pesan #2 sebagai ringkasan solusi resmi bagi operator desa.
+

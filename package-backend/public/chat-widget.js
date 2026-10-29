@@ -1,16 +1,47 @@
 (function () {
-  const currentScript = document.currentScript || document.querySelector('script[data-webhook]');
-  const WEBHOOK_URL = (currentScript && currentScript.getAttribute('data-webhook')) || 'http://localhost:5678/webhook/chat-entry';
-  const BACKEND_BASE_URL = (currentScript && currentScript.getAttribute('data-backend-url')) || window.location.origin;
+  const cfg = window.CHATBOT_CONFIG || {};
+  const currentScript = document.currentScript || document.querySelector('script[data-webhook]') || document.querySelector('script[src*="chat-widget"]');
+  const WEBHOOK_URL = (currentScript && currentScript.getAttribute('data-webhook')) || cfg.webhookUrl || `${window.location.origin}/api/webhook/chat-entry`;
+  const BACKEND_BASE_URL = (currentScript && currentScript.getAttribute('data-backend-url')) || cfg.backendUrl || cfg.apiBase?.replace(/\/api\/v1$/, '')?.replace(/\/v1$/, '') || window.location.origin;
   const scriptSrc = (currentScript && currentScript.src) || '';
   const scriptBase = scriptSrc ? scriptSrc.substring(0, scriptSrc.lastIndexOf('/')) : '';
-  const DEFAULT_LOGO = scriptBase ? `${scriptBase}/assets/logo-siskeudes-tnt.png` : './assets/logo-siskeudes-tnt.png';
-  const LOGO_URL = (currentScript && currentScript.getAttribute('data-logo-url')) || DEFAULT_LOGO;
-  const BOT_NAME = (currentScript && currentScript.getAttribute('data-bot-name')) || 'Asisten Digital Siskeudes TNT';
-  const CUSTOM_GREETING = (currentScript && currentScript.getAttribute('data-greeting')) || '';
+  const DEFAULT_LOGO = scriptBase ? `${scriptBase}/assets/logo-siskeudes-tnt.png` : `${BACKEND_BASE_URL}/vendor/chatbot/assets/logo-siskeudes-tnt.png`;
+  const LOGO_URL = (currentScript && currentScript.getAttribute('data-logo-url')) || cfg.logoUrl || DEFAULT_LOGO;
+  // Auto-detect Operating Mode: 'login' (Halaman Login Publik / Belum Login) vs 'dashboard' (Aplikasi Internal)
+  function detectMode() {
+    let rawMode = (currentScript && currentScript.getAttribute('data-mode')) || cfg.mode;
+    if (rawMode) {
+      return rawMode.toLowerCase();
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('mode') === 'login' || urlParams.get('mode') === 'auth') {
+      return 'login';
+    }
+    const path = window.location.pathname.toLowerCase();
+    if (path.includes('login') || path.includes('signin') || path.includes('auth') || path.includes('masuk')) {
+      return 'login';
+    }
+    // Cek jika ada elemen form login spesifik di halaman
+    if (document.querySelector('form[action*="login"], input[type="password"], #login-form, .login-page') &&
+        !document.querySelector('.navbar, .sidebar, #app-dashboard, .user-profile')) {
+      return 'login';
+    }
+    return 'dashboard';
+  }
 
-  // Auto-detect logged-in user from Inertia.js (Velzon), window globals, or script attributes
+  const CURRENT_MODE = detectMode();
+  const IS_LOGIN_MODE = CURRENT_MODE === 'login';
+
+  const DEFAULT_BOT_NAME = IS_LOGIN_MODE ? 'Helpdesk Bantuan Login Siskeudes TNT' : 'Asisten Digital Siskeudes TNT';
+  const BOT_NAME = (currentScript && currentScript.getAttribute('data-bot-name')) || cfg.title || cfg.botName || DEFAULT_BOT_NAME;
+  const PRIVACY_TAG = IS_LOGIN_MODE ? '🛡️ Layanan Publik &bull; Bantuan Akses Akun' : '🛡️ iMD Imtek Media Data &bull; Anti-PII';
+  const CUSTOM_GREETING = (currentScript && currentScript.getAttribute('data-greeting')) || cfg.greeting || '';
+
+  // Auto-detect logged-in user from CHATBOT_CONFIG, Inertia.js (Velzon), window globals, or script attributes
   function detectLoggedInUser() {
+    if (cfg.userId || cfg.userName) {
+      return { id: cfg.userId || 'pelapor-web', name: cfg.userName || '' };
+    }
     let rawId = currentScript && currentScript.getAttribute('data-user-id');
     let rawName = currentScript && currentScript.getAttribute('data-user-name');
 
@@ -44,9 +75,19 @@
 
   // Auto-detect Wilayah (Kabupaten & Desa) dan Tahun Anggaran secara dinamis untuk multi-kabupaten
   function detectSiskeudesContext() {
-    let kabupaten = (currentScript && currentScript.getAttribute('data-kabupaten')) || '';
-    let desa = (currentScript && currentScript.getAttribute('data-desa')) || '';
-    let tahun = (currentScript && currentScript.getAttribute('data-tahun')) || '';
+    let kabupaten = (currentScript && currentScript.getAttribute('data-kabupaten')) || cfg.kabupaten || '';
+    let desa = (currentScript && currentScript.getAttribute('data-desa')) || cfg.desa || '';
+    let tahun = (currentScript && currentScript.getAttribute('data-tahun')) || cfg.tahun || '';
+
+    // Cek dropdown select desa di halaman (seperti di Pencairan SPP Manual: select#kd_desa)
+    if (!desa) {
+      const selectDesa = document.querySelector('select#kd_desa, select[name="kd_desa"]');
+      if (selectDesa && selectDesa.selectedOptions && selectDesa.selectedOptions[0]) {
+        const rawTxt = selectDesa.selectedOptions[0].innerText || '';
+        const m = rawTxt.match(/(?:[0-9.]+\s+)?(?:Desa\s+|Kelurahan\s+)?([A-Za-z0-9\s]+)$/i);
+        if (m) desa = m[1].trim();
+      }
+    }
 
     // 1. Cek objek global window aplikasi host
     const globalContexts = [
@@ -123,11 +164,13 @@
   const USER_NAME = userSession.name;
   const CONVERSATION_ID = `conv-${USER_ID}-${Math.random().toString(36).substring(2, 9)}`;
 
-  // Tentukan nama sapaan ramah sesuai birokrasi Siskeudes
+  // Tentukan nama sapaan ramah sesuai konteks login / dashboard
   const contextRegion = siskeudesContext.desa ? `Desa ${siskeudesContext.desa}` : (siskeudesContext.kabupaten ? siskeudesContext.kabupaten : '');
-  const displayName = USER_NAME 
-    ? USER_NAME 
-    : (contextRegion ? `Bpk/Ibu Kaur Keuangan / Operator ${contextRegion}` : 'Bpk/Ibu Kaur Keuangan / Operator Desa');
+  const displayName = IS_LOGIN_MODE
+    ? (USER_NAME || 'Rekan Operator / Kaur Keuangan')
+    : (USER_NAME 
+        ? USER_NAME 
+        : (contextRegion ? `Bpk/Ibu Kaur Keuangan / Operator ${contextRegion}` : 'Bpk/Ibu Kaur Keuangan / Operator Desa'));
 
   // Client-side PII Masker (Lapisan Pertahanan Awal)
   function maskSensitivePII(text) {
@@ -191,7 +234,7 @@
       .ai-ticket-jira-box { background: #f0f7ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 5px 8px; font-size: 11px; color: #0369a1; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
       .ai-jira-badge-link { background: #0052cc; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 10.5px; padding: 2px 6px; border-radius: 4px; }
 
-      /* Issue Reporting Drawer (Siskeudes TNT Specific Form) */
+      /* Issue Reporting Drawer: Dual-Tab (Kendala Login vs Kendala Transaksi Siskeudes TNT) */
       #ai-issue-drawer { display: none; background: #ffffff; border-bottom: 2px solid #e2e8f0; padding: 12px 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.08); max-height: 480px; overflow-y: auto; }
       #ai-issue-drawer::-webkit-scrollbar { width: 5px; }
       #ai-issue-drawer::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
@@ -206,6 +249,10 @@
       .ai-drawer-submit-btn { flex: 1; background: #dc2626; color: #fff; border: none; border-radius: 6px; padding: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
       .ai-drawer-submit-btn:hover { background: #b91c1c; }
       .ai-drawer-cancel-btn { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; font-size: 12px; cursor: pointer; }
+      .ai-tab-btn { flex: 1; border: none; padding: 6px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+      .ai-tab-btn.active { background: #2563eb; color: #ffffff !important; box-shadow: 0 1px 4px rgba(37,99,235,0.25); }
+      .ai-tab-btn.inactive { background: transparent; color: #64748b; }
+      .ai-tab-btn.inactive:hover { background: #e2e8f0; color: #1e293b; }
 
       /* Chat Form */
       #ai-chat-form { display: flex; border-top: 1px solid #e2e8f0; padding: 10px; background: #fff; gap: 6px; align-items: center; }
@@ -215,7 +262,7 @@
       #ai-chat-submit:hover { background: #1d4ed8; }
       #ai-chat-submit:disabled { opacity: 0.6; cursor: not-allowed; }
     </style>
-    <button id="ai-chat-btn" title="Buka Percakapan Asisten Siskeudes TNT" style="padding: 0; overflow: hidden; border: 2px solid #2563eb; background: #ffffff;">
+    <button id="ai-chat-btn" title="${IS_LOGIN_MODE ? 'Buka Bantuan Kendala Login Siskeudes TNT' : 'Buka Percakapan Asisten Siskeudes TNT'}" style="padding: 0; overflow: hidden; border: 2px solid #2563eb; background: #ffffff;">
       <img src="${LOGO_URL}" alt="Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block;" onerror="this.style.display='none'; this.parentElement.innerHTML='🤖';" />
     </button>
     <div id="ai-chat-box">
@@ -225,21 +272,70 @@
             <img src="${LOGO_URL}" alt="Avatar" style="width: 26px; height: 26px; border-radius: 50%; object-fit: cover; border: 1.5px solid rgba(255,255,255,0.8); background: #fff;" onerror="this.style.display='none';" />
             ${BOT_NAME}
           </span>
-          <span class="ai-chat-privacy-tag">🛡️ iMD Imtek Media Data &bull; Anti-PII</span>
+          <span class="ai-chat-privacy-tag">${PRIVACY_TAG}</span>
         </div>
         <div class="ai-header-btns">
-          <button type="button" id="ai-chat-report-btn" class="ai-header-action-btn" title="Buat Laporan Kendala Siskeudes TNT">🚨 Lapor Kendala</button>
+          <button type="button" id="ai-chat-report-btn" class="ai-header-action-btn" title="${IS_LOGIN_MODE ? 'Lapor Kendala Login / Buka Blokir' : 'Buat Laporan Kendala Siskeudes TNT'}">${IS_LOGIN_MODE ? '🔑 Lapor Kendala Login' : '🚨 Lapor Kendala'}</button>
           <button type="button" id="ai-chat-close-btn" title="Tutup Chat">✕</button>
         </div>
       </div>
 
-      <!-- Quick Issue Report Drawer: Format Lengkap Siskeudes TNT -->
+      <!-- Quick Issue Report Drawer: Dual-Tab (Kendala Login vs Kendala Transaksi Siskeudes TNT) -->
       <div id="ai-issue-drawer">
         <div class="ai-drawer-header">
-          <span>🏛️ <b>Form Laporan Siskeudes TNT & CMS Bank</b></span>
+          <span id="ai-drawer-title-label">🏛️ <b>Form Laporan Kendala</b></span>
           <button type="button" id="ai-drawer-close">✕</button>
         </div>
-        <div>
+
+        <!-- Tab Selector: Kendala Login vs Transaksi SPP -->
+        <div style="display: flex; gap: 4px; margin-bottom: 10px; background: #f1f5f9; padding: 3px; border-radius: 8px;">
+          <button type="button" id="ai-tab-btn-login" class="ai-tab-btn ${IS_LOGIN_MODE ? 'active' : 'inactive'}">🔑 Kendala Login & Akun</button>
+          <button type="button" id="ai-tab-btn-tx" class="ai-tab-btn ${IS_LOGIN_MODE ? 'inactive' : 'active'}">🏛️ Transaksi Siskeudes TNT</button>
+        </div>
+
+        <!-- Tab Content 1: Formulir Khusus Kendala Login (Publik, Simpel, Cepat) -->
+        <div id="ai-drawer-form-login" style="display: ${IS_LOGIN_MODE ? 'block' : 'none'};">
+          <label class="ai-drawer-label">Email / Username Akun Terdaftar: *</label>
+          <input type="text" id="ai-login-account" class="ai-drawer-input" placeholder="Contoh: kaur.keuangan@desa.id atau kaur_sukamaju" required />
+
+          <label class="ai-drawer-label">No. WhatsApp Pelapor: *</label>
+          <input type="tel" id="ai-login-phone" class="ai-drawer-input" placeholder="Contoh: 08123456789 (Hasil & link buka blokir dikirim ke sini)" required />
+
+          <label class="ai-drawer-label">Jenis Masalah Login: *</label>
+          <select id="ai-login-issue-type" class="ai-drawer-input" style="background: #fff; cursor: pointer;">
+            <option value="Akun Terkunci (Salah Password >5x)">🔒 Akun Terkunci (Salah Password >5x)</option>
+            <option value="Lupa Password / Link Reset Tidak Masuk Email">🔑 Lupa Password (Email reset tidak masuk)</option>
+            <option value="Username / Email Tidak Ditemukan">❓ Username / Email Tidak Ditemukan</option>
+            <option value="Halaman Login Error / Captcha Gagal">⚠️ Halaman Login Error / Captcha Gagal</option>
+            <option value="Kendala Akses Akun Lainnya">📝 Kendala Akun Lainnya</option>
+          </select>
+
+          <div class="ai-drawer-grid-2">
+            <div>
+              <label class="ai-drawer-label">Kabupaten (Opsional):</label>
+              <input type="text" id="ai-login-kabupaten" class="ai-drawer-input" placeholder="Contoh: Kab. Bogor" />
+            </div>
+            <div>
+              <label class="ai-drawer-label">Nama Desa (Opsional):</label>
+              <input type="text" id="ai-login-desa" class="ai-drawer-input" placeholder="Contoh: Desa Sukamaju" />
+            </div>
+          </div>
+
+          <label class="ai-drawer-label">Keterangan Tambahan / Pesan Error: *</label>
+          <textarea id="ai-login-desc" class="ai-drawer-textarea" rows="2" placeholder="Jelaskan pesan error yang muncul saat mencoba masuk..." required></textarea>
+
+          <div class="ai-drawer-notice" style="background: #fef2f2; border-color: #fecaca; color: #991b1b;">
+            🔐 <b>Langsung Diteruskan ke Admin IT:</b> Tiket diprioritaskan untuk pembukaan blokir akun atau reset kata sandi. Tanda terima & link pelacak mandiri akan dikirim via WhatsApp.
+          </div>
+
+          <div class="ai-drawer-actions">
+            <button type="button" id="ai-login-submit" class="ai-drawer-submit-btn" style="background: #dc2626;">🚀 Kirim Laporan Kendala Login</button>
+            <button type="button" id="ai-login-cancel" class="ai-drawer-cancel-btn">Batal</button>
+          </div>
+        </div>
+
+        <!-- Tab Content 2: Formulir Transaksi Siskeudes TNT & CMS Bank (Authenticated) -->
+        <div id="ai-drawer-form-tx" style="display: ${IS_LOGIN_MODE ? 'none' : 'block'};">
           <label class="ai-drawer-label">No. WhatsApp Pelapor: *</label>
           <input type="tel" id="ai-issue-phone" class="ai-drawer-input" placeholder="Contoh: 08123456789 (Hasil dikirim ke sini)" required />
 
@@ -276,7 +372,7 @@
             </div>
           </div>
 
-          <label class="ai-drawer-label">Keterangan / Kendala: *</label>
+          <label class="ai-drawer-label">Keterangan / Kendala Transaksi: *</label>
           <textarea id="ai-issue-desc" class="ai-drawer-textarea" rows="2" placeholder="Jelaskan kendala transaksi atau error yang muncul..." required></textarea>
 
           <div class="ai-drawer-notice">
@@ -295,24 +391,34 @@
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
             <img src="${LOGO_URL}" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1.5px solid #2563eb; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.08);" onerror="this.style.display='none';" />
             <div>
-              <div style="font-weight: 800; font-size: 13.5px; color: #1e3a8a; line-height: 1.2;">Asisten Digital Siskeudes TNT</div>
+              <div style="font-weight: 800; font-size: 13.5px; color: #1e3a8a; line-height: 1.2;">${BOT_NAME}</div>
               <div style="font-size: 10px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">iMD IMTEK MEDIA DATA &bull; HELPDESK</div>
             </div>
           </div>
-          ${CUSTOM_GREETING ? CUSTOM_GREETING : `Halo <b>${displayName}</b>! 👋 Selamat datang di Layanan Bantuan Siskeudes TNT & Transaksi Non-Tunai.<br><br>Pilih bantuan cepat di bawah, cek pencairan SPP, status tiket, atau laporkan kendala:`}
+          ${CUSTOM_GREETING ? CUSTOM_GREETING : (IS_LOGIN_MODE 
+            ? `Halo <b>${displayName}</b>! 👋 Mengalami kendala saat masuk akun atau akun terkunci di Siskeudes TNT?<br><br>Gunakan panduan mandiri di bawah atau klik tombol lapor kendala login agar Admin IT segera membuka blokir akun Anda:`
+            : `Halo <b>${displayName}</b>! 👋 Selamat datang di Layanan Bantuan Siskeudes TNT & Transaksi Non-Tunai.<br><br>Pilih bantuan cepat di bawah, cek pencairan SPP, status tiket, atau laporkan kendala:`
+          )}
           <div class="ai-quick-chips">
-            <button type="button" class="ai-chip-btn ai-chip-issue" id="ai-btn-open-issue-form">🚨 Form Lapor Kendala Siskeudes</button>
-            <button type="button" class="ai-chip-btn" data-query="Cek status pencairan SPP">💸 Cek Pencairan SPP</button>
-            <button type="button" class="ai-chip-btn" data-query="SOP verifikasi SPP dan upload SPTJB/SPP2 (Hal 10)">📋 SOP Verifikasi SPP</button>
-            <button type="button" class="ai-chip-btn" data-query="Kenapa status akun berwarna merah saat verifikasi SPP? (Hal 10)">🔴 Solusi Akun Merah</button>
-            <button type="button" class="ai-chip-btn" data-query="Bagaimana cara koreksi ID Billing Pajak kadaluarsa? (Hal 15)">📑 Koreksi ID Billing</button>
-            <button type="button" class="ai-chip-btn" data-query="Penyebab transaksi masuk menu Pembayaran Gagal di CMS Bank Desa? (Hal 6)">❌ Menu Pembayaran Gagal</button>
-            <button type="button" class="ai-chip-btn" data-query="Bagaimana alur SPP dari Siskeudes Online agar terbaca di Siskeudes TNT?">🔄 Alur SPP Online</button>
+            ${IS_LOGIN_MODE ? `
+              <button type="button" class="ai-chip-btn ai-chip-issue" id="ai-btn-open-login-form">🚨 Form Lapor Kendala Login</button>
+              <button type="button" class="ai-chip-btn" data-query="Lupa kata sandi dan cara reset password">🔑 Lupa Kata Sandi</button>
+              <button type="button" class="ai-chip-btn" data-query="Akun terkunci setelah 5 kali salah password">🔓 Buka Blokir Akun</button>
+              <button type="button" class="ai-chip-btn" data-query="Cek status tiket laporan login">🔍 Lacak Status Tiket</button>
+            ` : `
+              <button type="button" class="ai-chip-btn ai-chip-issue" id="ai-btn-open-issue-form">🚨 Form Lapor Kendala Siskeudes</button>
+              <button type="button" class="ai-chip-btn" id="ai-btn-open-login-from-dash">🔑 Bantuan Akun / Login</button>
+              <button type="button" class="ai-chip-btn" data-query="Cek status pencairan SPP">💸 Cek Pencairan SPP</button>
+              <button type="button" class="ai-chip-btn" data-query="SOP verifikasi SPP dan upload SPTJB/SPP2 (Hal 10)">📋 SOP Verifikasi SPP</button>
+              <button type="button" class="ai-chip-btn" data-query="Kenapa status akun berwarna merah saat verifikasi SPP? (Hal 10)">🔴 Solusi Akun Merah</button>
+              <button type="button" class="ai-chip-btn" data-query="Bagaimana cara koreksi ID Billing Pajak kadaluarsa? (Hal 15)">📑 Koreksi ID Billing</button>
+              <button type="button" class="ai-chip-btn" data-query="Penyebab transaksi masuk menu Pembayaran Gagal di CMS Bank Desa? (Hal 6)">❌ Menu Pembayaran Gagal</button>
+            `}
           </div>
         </div>
       </div>
       <form id="ai-chat-form">
-        <input type="text" id="ai-chat-input" placeholder="Ketik no. SPP (0015/SPP/...), no. tiket (TCK-...), atau pertanyaan..." required autocomplete="off" />
+        <input type="text" id="ai-chat-input" placeholder="${IS_LOGIN_MODE ? 'Ketik kendala login, no. tiket (TCK-...), atau pertanyaan...' : 'Ketik no. SPP (0015/SPP/...), no. tiket (TCK-...), atau pertanyaan...'}" required autocomplete="off" />
         <button type="submit" id="ai-chat-submit">Kirim</button>
       </form>
     </div>
@@ -333,6 +439,15 @@
   const drawerSubmit = document.getElementById('ai-issue-submit');
   const chipIssueBtn = document.getElementById('ai-btn-open-issue-form');
 
+  // Tab & Login Elements
+  const tabBtnLogin = document.getElementById('ai-tab-btn-login');
+  const tabBtnTx = document.getElementById('ai-tab-btn-tx');
+  const formLoginEl = document.getElementById('ai-drawer-form-login');
+  const formTxEl = document.getElementById('ai-drawer-form-tx');
+  const drawerTitleLabel = document.getElementById('ai-drawer-title-label');
+  const loginSubmit = document.getElementById('ai-login-submit');
+  const loginCancel = document.getElementById('ai-login-cancel');
+
   function toggleChat() {
     const isVisible = box.style.display === 'flex';
     box.style.display = isVisible ? 'none' : 'flex';
@@ -341,31 +456,58 @@
     }
   }
 
-  function toggleDrawer(show) {
+  function switchDrawerTab(targetTab) {
+    if (targetTab === 'login') {
+      if (tabBtnLogin) tabBtnLogin.className = 'ai-tab-btn active';
+      if (tabBtnTx) tabBtnTx.className = 'ai-tab-btn inactive';
+      if (formLoginEl) formLoginEl.style.display = 'block';
+      if (formTxEl) formTxEl.style.display = 'none';
+      if (drawerTitleLabel) drawerTitleLabel.innerHTML = '🔑 <b>Form Lapor Kendala Login</b>';
+      const ctx = detectSiskeudesContext();
+      const kabL = document.getElementById('ai-login-kabupaten');
+      const desL = document.getElementById('ai-login-desa');
+      if (kabL && !kabL.value && ctx.kabupaten) kabL.value = ctx.kabupaten;
+      if (desL && !desL.value && ctx.desa) desL.value = ctx.desa;
+      const acc = document.getElementById('ai-login-account');
+      if (acc) setTimeout(() => acc.focus(), 50);
+    } else {
+      if (tabBtnLogin) tabBtnLogin.className = 'ai-tab-btn inactive';
+      if (tabBtnTx) tabBtnTx.className = 'ai-tab-btn active';
+      if (formLoginEl) formLoginEl.style.display = 'none';
+      if (formTxEl) formTxEl.style.display = 'block';
+      if (drawerTitleLabel) drawerTitleLabel.innerHTML = '🏛️ <b>Form Laporan Siskeudes TNT</b>';
+      const ctx = detectSiskeudesContext();
+      const kabInput = document.getElementById('ai-issue-kabupaten');
+      const desaInput = document.getElementById('ai-issue-desa');
+      if (kabInput && !kabInput.value && ctx.kabupaten) kabInput.value = ctx.kabupaten;
+      if (desaInput && !desaInput.value && ctx.desa) desaInput.value = ctx.desa;
+      const phoneInput = document.getElementById('ai-issue-phone');
+      if (phoneInput && !phoneInput.value) setTimeout(() => phoneInput.focus(), 50);
+    }
+  }
+
+  if (tabBtnLogin) {
+    tabBtnLogin.addEventListener('click', () => switchDrawerTab('login'));
+  }
+  if (tabBtnTx) {
+    tabBtnTx.addEventListener('click', () => switchDrawerTab('tx'));
+  }
+
+  function toggleDrawer(show, initialTab = null) {
     if (show === undefined) {
       issueDrawer.style.display = issueDrawer.style.display === 'block' ? 'none' : 'block';
     } else {
       issueDrawer.style.display = show ? 'block' : 'none';
     }
     if (issueDrawer.style.display === 'block') {
-      // Auto-fill context Kabupaten & Desa dari project secara dinamis
-      const ctx = detectSiskeudesContext();
-      const kabInput = document.getElementById('ai-issue-kabupaten');
-      const desaInput = document.getElementById('ai-issue-desa');
-      if (kabInput && !kabInput.value && ctx.kabupaten) {
-        kabInput.value = ctx.kabupaten;
-      }
-      if (desaInput && !desaInput.value && ctx.desa) {
-        desaInput.value = ctx.desa;
-      }
-      const phoneInput = document.getElementById('ai-issue-phone');
-      if (phoneInput && !phoneInput.value) {
-        phoneInput.focus();
-      } else if (kabInput && !kabInput.value) {
-        kabInput.focus();
-      }
+      const activeTab = initialTab || (IS_LOGIN_MODE ? 'login' : 'tx');
+      switchDrawerTab(activeTab);
     }
   }
+
+  window.__openLoginIssueForm = function () {
+    toggleDrawer(true, 'login');
+  };
 
   btn.addEventListener('click', toggleChat);
   if (closeBtn) {
@@ -375,10 +517,14 @@
   }
 
   if (reportBtn) {
-    reportBtn.addEventListener('click', () => toggleDrawer(true));
+    reportBtn.addEventListener('click', () => {
+      toggleDrawer(true, IS_LOGIN_MODE ? 'login' : 'tx');
+    });
   }
   if (chipIssueBtn) {
-    chipIssueBtn.addEventListener('click', () => toggleDrawer(true));
+    chipIssueBtn.addEventListener('click', () => {
+      toggleDrawer(true, 'tx');
+    });
   }
   if (drawerClose) {
     drawerClose.addEventListener('click', () => toggleDrawer(false));
@@ -386,15 +532,150 @@
   if (drawerCancel) {
     drawerCancel.addEventListener('click', () => toggleDrawer(false));
   }
+  if (loginCancel) {
+    loginCancel.addEventListener('click', () => toggleDrawer(false));
+  }
+
+  // Handle Submit Formulir Kendala Login
+  if (loginSubmit) {
+    loginSubmit.addEventListener('click', async () => {
+      const account = document.getElementById('ai-login-account').value.trim();
+      const phone = document.getElementById('ai-login-phone').value.trim();
+      const issueType = document.getElementById('ai-login-issue-type').value;
+      const kabupaten = document.getElementById('ai-login-kabupaten').value.trim();
+      const desa = document.getElementById('ai-login-desa').value.trim();
+      const desc = document.getElementById('ai-login-desc').value.trim();
+
+      if (!account) {
+        alert('Mohon isi Email atau Username akun yang mengalami kendala.');
+        document.getElementById('ai-login-account').focus();
+        return;
+      }
+      if (!phone) {
+        alert('Mohon isi Nomor WhatsApp Pelapor.');
+        document.getElementById('ai-login-phone').focus();
+        return;
+      }
+      if (!desc) {
+        alert('Mohon isi Keterangan Kendala / Pesan Error yang dialami.');
+        document.getElementById('ai-login-desc').focus();
+        return;
+      }
+
+      toggleDrawer(false);
+      loginSubmit.disabled = true;
+
+      appendMsg('user', `Mengirim Laporan Kendala Login untuk akun [${account}], WhatsApp: ${phone}...`);
+
+      const loadingId = 'loading-' + Date.now();
+      const loadingDiv = document.createElement('div');
+      loadingDiv.id = loadingId;
+      loadingDiv.className = 'ai-msg loading';
+      loadingDiv.innerText = 'Mencatat tiket kendala login ke Jira SUP, notifikasi Helpdesk IT & mengirim bukti tanda terima ke WhatsApp...';
+      msgContainer.appendChild(loadingDiv);
+      msgContainer.scrollTop = msgContainer.scrollHeight;
+
+      const payload = {
+        user_id: account,
+        user_name: account ? `User: ${account}` : `Pelapor Login (${phone})`,
+        reporter_phone: phone,
+        kabupaten: kabupaten || siskeudesContext.kabupaten || null,
+        nama_desa: desa || siskeudesContext.desa || null,
+        category: 'akun',
+        feature_name: 'Autentikasi & Login Siskeudes',
+        description: `[Kendala: ${issueType}] Akun: ${account}. Keterangan: ${desc}`,
+        urgency: 'tinggi',
+        channel: IS_LOGIN_MODE ? 'web_login_page' : 'web'
+      };
+
+      try {
+        const backendUrl = BACKEND_BASE_URL.replace(/\/$/, '');
+        const endpoints = [
+          `${backendUrl}/api/v1/tickets/public-submit`,
+          `${backendUrl}/v1/tickets/public-submit`,
+          `${backendUrl}/tickets/public-submit`
+        ];
+
+        let resultData = null;
+        for (const ep of endpoints) {
+          try {
+            const resp = await fetch(ep, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (resp.ok) {
+              resultData = await resp.json();
+              break;
+            }
+          } catch (err) {}
+        }
+
+        const el = document.getElementById(loadingId);
+        if (el) el.remove();
+
+        if (resultData && (resultData.ticket || resultData.ticket_number)) {
+          const t = resultData.ticket || resultData;
+          const ticketNumber = t.ticket_number;
+          const magicLink = t.magic_link || `${backendUrl}/api/v1/tickets/track/${ticketNumber}?token=${t.tracking_token || ''}`;
+
+          let botText = `🎫 <b>Tiket Bantuan Kendala Login Berhasil Diterbitkan!</b><br><br>`
+            + `Laporan pemulihan akses akun <b>${account}</b> telah diteruskan ke Admin IT Siskeudes TNT untuk segera ditindaklanjuti.<br>`
+            + `Tanda terima dan tautan pemantauan mandiri telah dikirimkan ke WhatsApp <b>${phone}</b>.`;
+
+          appendMsg('bot', botText, 'report_customer_issue', {
+            is_ticket_report: true,
+            ticket_number: ticketNumber,
+            ticket: t,
+            magic_link: magicLink,
+            jira: resultData.jira || null
+          });
+
+          // Reset input fields
+          document.getElementById('ai-login-desc').value = '';
+        } else {
+          sendChatMessage(`Min, tolong bantu akun terkunci/kendala login: Akun ${account}, No WA: ${phone}. Masalah: ${issueType}. Detail: ${desc}`);
+        }
+      } catch (err) {
+        const el = document.getElementById(loadingId);
+        if (el) el.remove();
+        appendMsg('bot', 'Gagal memproses laporan kendala login. Silakan hubungi helpdesk IT desa Anda atau coba beberapa saat lagi.');
+      } finally {
+        loginSubmit.disabled = false;
+      }
+    });
+  }
 
   // Handle Quick Chip Queries
   msgContainer.addEventListener('click', (e) => {
     const chip = e.target.closest('.ai-chip-btn');
-    if (chip && chip.dataset.query) {
-      input.value = chip.dataset.query;
-      form.requestSubmit();
-    } else if (chip && chip.id === 'ai-btn-open-issue-form') {
-      toggleDrawer(true);
+    if (!chip) return;
+
+    if (chip.id === 'ai-btn-open-login-form' || chip.id === 'ai-btn-open-login-from-dash') {
+      window.__openLoginIssueForm();
+      return;
+    }
+
+    if (chip.id === 'ai-btn-open-issue-form') {
+      toggleDrawer(true, 'tx');
+      return;
+    }
+
+    if (chip.classList.contains('ai-chip-spp-item') && chip.dataset.spp) {
+      const sppNumber = chip.dataset.spp;
+      input.value = sppNumber;
+      handleSppInquiry(sppNumber, sppNumber);
+      return;
+    }
+
+    if (chip.dataset.query) {
+      const query = chip.dataset.query;
+      if (isGeneralSppInquiry(query)) {
+        askForSppNumber(query);
+      } else {
+        input.value = query;
+        form.requestSubmit();
+      }
     }
   });
 
@@ -524,6 +805,76 @@
     });
   }
 
+  // Deteksi apakah user menanyakan status SPP secara umum tanpa menyertakan nomor spesifik
+  function isGeneralSppInquiry(text) {
+    const t = (text || '').trim().toLowerCase();
+    const generalPatterns = [
+      /^(?:cek|status|pencairan|mau cek|tolong cek|bisa cek)?\s*(?:status)?\s*(?:pencairan)?\s*spp(?:\s*(?:online|manual|desa|tnt|link|dong|min))?$/i,
+      /^(?:cek|status)?\s*(?:status)?\s*pencairan(?:\s*(?:spp|dana|desa))?$/i,
+      /^apakah\s*(?:status)?\s*(?:pencairan)?\s*spp\s*(?:sudah\s*cair|sudah\s*masuk)?\??$/i,
+      /^(?:cek\s*status\s*pencairan\s*spp|cek\s*pencairan\s*spp|cek\s*status\s*spp|cek\s*spp|pencairan\s*spp)$/i
+    ];
+    return generalPatterns.some(p => p.test(t));
+  }
+
+  // Ekstrak nomor SPP / CMS / Kwitansi spesifik (wajib ada angka / pola baku)
+  function extractSppIdentifier(text) {
+    // A. Format baku Siskeudes: 00001/SPP/...
+    const mSpp = text.match(/\b(\d{3,5}\/SPP\/[0-9A-Za-z./-]+)\b/i);
+    if (mSpp) return mSpp[1];
+
+    // B. Format Kode CMS dengan angka: CMS-2026-00123 atau CMS2026001001
+    const mCms = text.match(/\b(CMS[-_0-9A-Za-z]*\d+[-_0-9A-Za-z]*)\b/i);
+    if (mCms && mCms[1].length >= 6) return mCms[1];
+
+    // C. Format Kwitansi dengan angka: KW-1/2026 atau KW-001/2026
+    const mKw = text.match(/\b(KW[-_./0-9A-Za-z]*\d+[-_./0-9A-Za-z]*)\b/i);
+    if (mKw && mKw[1].length >= 4) return mKw[1];
+
+    // D. Format eksplisit dengan keyword pencarian: cek spp 00001/...
+    const mExplicit = text.match(/(?:cek|status|pencairan)\s*(?:status)?\s*(?:pencairan)?\s*(?:spp|cms|kwitansi)\s*[:=]?\s*([0-9A-Za-z/.-]*\d[0-9A-Za-z/.-]*)/i);
+    if (mExplicit && mExplicit[1].length >= 4) {
+      const cand = mExplicit[1];
+      const stopwords = ['pencairan', 'status', 'online', 'manual', 'tnt', 'desa', 'bank', 'kwitansi'];
+      if (!stopwords.includes(cand.toLowerCase())) {
+        return cand;
+      }
+    }
+
+    return null;
+  }
+
+  // Tanya nomor SPP ke pengguna
+  function askForSppNumber(originalText) {
+    if (originalText) {
+      appendMsg('user', originalText);
+    }
+
+    if (IS_LOGIN_MODE) {
+      appendMsg('bot', '🔒 <b>Pengecekan Data Transaksi Memerlukan Login:</b><br><br>'
+        + 'Demi perlindungan kerahasiaan keuangan desa, fitur pengecekan SPP dan mutasi CMS Bank hanya tersedia bagi operator yang telah berhasil login.<br><br>'
+        + 'Jika Anda terkendala masuk akun, silakan gunakan tombol <b>🚨 Form Lapor Kendala Login</b> di bawah.');
+      return;
+    }
+
+    const replyHtml = `Silakan ketikkan <b>Nomor SPP</b>, <b>Kode CMS Siskeudes</b>, atau <b>Nomor Kwitansi</b> yang ingin dicek status pencairannya:<br><br>`
+      + `<i>Contoh format:</i><br>`
+      + `• <code>00001/SPP/51.03.01.2001/2026</code><br>`
+      + `• <code>CMS2026001001</code><br>`
+      + `• <code>KW-1/2026</code>`;
+
+    appendMsg('bot', replyHtml);
+    input.placeholder = "Ketik no. SPP (contoh: 00001/SPP/51.03.01.2001/2026)...";
+    input.focus();
+  }
+
+  window.__checkSppDirect = function(sppNum) {
+    if (sppNum) {
+      input.value = sppNum;
+      handleSppInquiry(sppNum, sppNum);
+    }
+  };
+
   // Handle Chat Input Form
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -539,21 +890,16 @@
       return;
     }
 
-    // 2. Cek apakah user menanyakan status pencairan SPP / Kode CMS
-    const matchSppQuery = text.match(/(?:cek|status|pencairan|cair|apakah cair|sudah cair)\s*(?:spp|cms|kwitansi)?\s*([0-9A-Za-z/.-]{4,})/i)
-      || text.match(/\b(\d{3,5}\/SPP\/[0-9A-Za-z./-]+)\b/i)
-      || text.match(/\b(CMS-\d{4}-\d+)\b/i);
-
-    if (matchSppQuery) {
-      const sppKey = matchSppQuery[1] || matchSppQuery[0];
-      handleSppInquiry(sppKey, text);
+    // 2. Cek apakah query meminta pengecekan SPP umum tanpa nomor
+    if (isGeneralSppInquiry(text)) {
+      askForSppNumber(text);
       return;
     }
 
-    // 3. Cek apakah tombol atau query meminta pengecekan SPP umum tanpa nomor
-    if (/^(?:cek|status)?\s*(?:status)?\s*pencairan\s*spp$/i.test(text.trim())) {
-      appendMsg('user', text);
-      appendMsg('bot', `Silakan ketikkan <b>Nomor SPP</b>, <b>Kode CMS Siskeudes</b>, atau <b>Nomor Kwitansi</b> yang ingin dicek status pencairannya:<br><br><i>Contoh:</i><br>• <code>00012/SPP/01.2003/2026</code><br>• <code>CMS-2026-00129</code><br>• <code>KW-042/2026</code>`);
+    // 3. Cek apakah user menyertakan nomor SPP / Kode CMS / Kwitansi spesifik
+    const sppKey = extractSppIdentifier(text);
+    if (sppKey) {
+      handleSppInquiry(sppKey, text);
       return;
     }
 
@@ -618,6 +964,14 @@
   // Pengecekan Mandiri Status Pencairan SPP (Read-Only API)
   async function handleSppInquiry(sppKey, originalText) {
     appendMsg('user', originalText);
+
+    if (IS_LOGIN_MODE) {
+      appendMsg('bot', '🔒 <b>Pengecekan Data Transaksi Memerlukan Login:</b><br><br>'
+        + 'Pengecekan rincian pencairan SPP <code>' + sppKey + '</code> tidak diizinkan di halaman login publik demi perlindungan kerahasiaan kas daerah.<br><br>'
+        + 'Silakan login terlebih dahulu untuk mengakses data desa Anda, atau gunakan tombol <b>🚨 Form Lapor Kendala Login</b> jika mengalami masalah masuk akun.');
+      return;
+    }
+
     submitBtn.disabled = true;
 
     const loadingId = 'loading-' + Date.now();
@@ -639,11 +993,11 @@
       const el = document.getElementById(loadingId);
       if (el) el.remove();
 
-      if (data && data.spp_data) {
+      if (data && data.status === 'success' && data.spp_data) {
         const s = data.spp_data;
         const isCair = s.status_pembayaran === 'BERHASIL_CAIR';
-        const badgeBg = isCair ? '#10b981' : '#f59e0b';
-        const badgeText = isCair ? '🟢 SUDAH CAIR / BERHASIL TRANSFER' : '🟡 MENUNGGU VERIFIKASI / PROSES';
+        const badgeBg = s.badge_color === 'success' ? '#10b981' : (s.badge_color === 'danger' ? '#ef4444' : '#f59e0b');
+        const badgeText = s.status_label || (isCair ? '🟢 SUDAH CAIR / BERHASIL TRANSFER' : '🟡 MENUNGGU VERIFIKASI / PROSES');
 
         let html = `
           <div style="font-size: 13px; line-height: 1.45;">
@@ -681,7 +1035,20 @@
 
         appendMsg('bot', html);
       } else {
-        appendMsg('bot', `Data SPP <b>${sppKey}</b> tidak ditemukan. Pastikan format nomor SPP atau Kode CMS sudah sesuai.`);
+        const notFoundMsg = (data && data.message) ? data.message : `Data transaksi untuk <b>${sppKey}</b> tidak ditemukan dalam database Siskeudes.`;
+        let notFoundHtml = `
+          <div style="font-size: 13px; line-height: 1.45;">
+            <b>Hasil Pengecekan Status SPP: Tidak Ditemukan</b><br>
+            <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 10px; margin-top: 8px;">
+              <div style="font-weight: 700; color: #b45309; font-family: monospace; margin-bottom: 4px;">🔍 ${sppKey}</div>
+              <div style="font-size: 11.5px; color: #78350f; line-height: 1.5;">${notFoundMsg}</div>
+            </div>
+            <div style="margin-top: 8px; display: flex; gap: 6px;">
+              <button type="button" class="ai-chip-btn ai-chip-issue" onclick="window.__prefillSiskeudesIssue('${sppKey}', '', '', '')">🚨 Butuh Bantuan Teknis? Buat Laporan</button>
+            </div>
+          </div>
+        `;
+        appendMsg('bot', notFoundHtml);
       }
     } catch (err) {
       const el = document.getElementById(loadingId);
@@ -695,6 +1062,17 @@
 
   // Knowledge Base SOP Templates Resmi (Kemendagri & BPKP Manual Book)
   const SOP_TEMPLATES = {
+    login_troubleshooting: {
+      regex: /(?:tidak bisa login|gagal login|lupa password|lupa kata sandi|akun terkunci|terkunci|lockout|reset password|tidak bisa masuk|bantuan login|kendala login)/i,
+      title: '🔑 Panduan Mandiri Kendala Login & Akun Terkunci',
+      steps: [
+        'Periksa kembali penulisan <b>Email / Username</b> akun Anda (pastikan huruf besar/kecil benar dan Caps Lock tidak aktif).',
+        'Gunakan fitur <b>Lupa Password?</b> pada halaman login untuk menerima tautan pemulihan kata sandi otomatis melalui email terdaftar.',
+        'Jika salah memasukkan kata sandi lebih dari 5 kali berturut-turut, sistem otomatis mengunci akun sementara demi perlindungan kas desa.',
+        'Bersihkan <i>Cache & Cookies</i> browser Anda, atau coba buka melalui jendela <b>Incognito / Private Window</b>.'
+      ],
+      escalation: 'Jika akun masih terkunci atau tidak menerima email reset, klik tombol di bawah untuk membuat laporan langsung ke Helpdesk IT.'
+    },
     spp_verifikasi: {
       regex: /(?:verifikasi\s*spp|upload\s*sptjb|upload\s*spp2|upload\s*berkas|captcha|tombol\s*setuju|hal(?:aman)?\s*10(?:\s*poin\s*d)?)/i,
       title: '📋 SOP Verifikasi SPP & Upload SPTJB/SPP2 (Manual Hal. 10 Poin D)',
@@ -769,6 +1147,11 @@
         appendMsg('user', text);
         let stepsHtml = sop.steps.map((st, idx) => `<div style="margin-bottom: 5px; display: flex; gap: 6px;"><span style="background: #e0e7ff; color: #3730a3; font-weight: 700; border-radius: 50%; min-width: 18px; height: 18px; font-size: 11px; display: inline-flex; align-items: center; justify-content: center;">${idx+1}</span><span>${st}</span></div>`).join('');
         
+        const isLoginSop = key === 'login_troubleshooting';
+        const buttonHtml = isLoginSop
+          ? `<button type="button" class="ai-chip-btn ai-chip-issue" onclick="window.__openLoginIssueForm()">🚨 Form Lapor Kendala Login ke Admin IT</button>`
+          : `<button type="button" class="ai-chip-btn ai-chip-issue" onclick="window.__prefillSiskeudesIssue()">🚨 Butuh Bantuan Teknis? Buat Laporan</button>`;
+
         let reply = `
           <div style="font-size: 13px; line-height: 1.45;">
             <b>${sop.title}</b><br><br>
@@ -779,7 +1162,7 @@
               💡 <b>Catatan Penting:</b> ${sop.escalation}
             </div>
             <div style="display: flex; gap: 6px;">
-              <button type="button" class="ai-chip-btn ai-chip-issue" onclick="window.__prefillSiskeudesIssue()">🚨 Butuh Bantuan Teknis? Buat Laporan</button>
+              ${buttonHtml}
             </div>
           </div>
         `;
@@ -837,7 +1220,7 @@
     } catch {
       const el = document.getElementById(loadingId);
       if (el) el.remove();
-      appendMsg('bot', 'Layanan tidak dapat dihubungi saat ini. Silakan coba beberapa saat lagi.');
+      appendMsg('bot', 'Halo <b>' + displayName + '</b>! 👋 Asisten Digital Siskeudes TNT siap melayani Anda.<br><br>Untuk mengecek status pencairan SPP secara langsung, Anda dapat mengetikkan nomor SPP (contoh: <code>00001/SPP/51.03.01.2001/2026</code>) atau gunakan tombol <b>🚨 Form Lapor Kendala</b> jika mengalami kendala transaksi.');
     } finally {
       submitBtn.disabled = false;
       input.focus();
