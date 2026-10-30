@@ -57,6 +57,9 @@ class TicketReportController extends Controller
             'urgency'            => 'nullable|string|in:rendah,sedang,tinggi,darurat,low,medium,high,critical',
             'channel'            => 'nullable|string',
             'ticket_number'      => 'nullable|string',
+            'screenshot'         => 'nullable',
+            'screenshot_name'    => 'nullable|string',
+            'attachment'         => 'nullable',
             'metadata'           => 'nullable|array',
         ]);
 
@@ -116,6 +119,56 @@ class TicketReportController extends Controller
 
         $metadata = $data['metadata'] ?? [];
 
+        // 3.5. Penanganan Berkas Lampiran Screenshot Bukti Kendala (File Upload / Base64)
+        $savedAttachmentPath = null;
+        $savedAttachmentName = null;
+        $attachmentUrl = null;
+
+        try {
+            $attachmentDir = storage_path('app/chatbot_attachments');
+            if (!file_exists($attachmentDir)) {
+                @mkdir($attachmentDir, 0755, true);
+            }
+
+            // A. Cek file upload langsung (multipart/form-data)
+            if ($request->hasFile('screenshot') || $request->hasFile('attachment')) {
+                $file = $request->file('screenshot') ?: $request->file('attachment');
+                if ($file && $file->isValid()) {
+                    $ext = strtolower($file->getClientOriginalExtension());
+                    if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp'])) {
+                        $savedAttachmentName = 'ss_' . $ticketNumber . '_' . uniqid() . '.' . $ext;
+                        $file->move($attachmentDir, $savedAttachmentName);
+                        $savedAttachmentPath = $attachmentDir . '/' . $savedAttachmentName;
+                    }
+                }
+            }
+            // B. Cek payload Base64 (data:image/png;base64,...)
+            elseif (!empty($data['screenshot']) || !empty($data['attachment']) || !empty($request->input('screenshot')) || !empty($request->input('attachment'))) {
+                $rawBase64 = $data['screenshot'] ?? ($data['attachment'] ?? ($request->input('screenshot') ?: $request->input('attachment')));
+                if (is_string($rawBase64) && preg_match('/^data:image\/(png|jpe?g|webp);base64,(.+)$/i', $rawBase64, $matches)) {
+                    $ext = strtolower($matches[1] === 'jpeg' ? 'jpg' : $matches[1]);
+                    $decoded = base64_decode($matches[2]);
+                    if ($decoded !== false && strlen($decoded) > 0 && strlen($decoded) <= 7 * 1024 * 1024) {
+                        $savedAttachmentName = 'ss_' . $ticketNumber . '_' . uniqid() . '.' . $ext;
+                        $savedAttachmentPath = $attachmentDir . '/' . $savedAttachmentName;
+                        file_put_contents($savedAttachmentPath, $decoded);
+                    }
+                }
+            }
+
+            if ($savedAttachmentPath && file_exists($savedAttachmentPath)) {
+                $attachmentUrl = "{$baseUrl}/api/v1/tickets/{$ticketNumber}/attachment";
+                $metadata['attachment'] = [
+                    'file_name' => $savedAttachmentName,
+                    'file_path' => $savedAttachmentPath,
+                    'file_size' => filesize($savedAttachmentPath),
+                    'url'       => $attachmentUrl,
+                ];
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[TicketReportController] Gagal memproses berkas screenshot: ' . $e->getMessage());
+        }
+
         $ticketData = [
             'ticket_number'      => $ticketNumber,
             'tracking_token'     => $trackingToken,
@@ -140,6 +193,11 @@ class TicketReportController extends Controller
             'updated_at'         => now(),
         ];
 
+        if (!empty($savedAttachmentName)) {
+            $ticketData['attachment_name'] = $savedAttachmentName;
+            $ticketData['attachment_path'] = $savedAttachmentPath;
+        }
+
         // 4. Integrasi Otomatis ke Jira Service Management / Jira Service Desk (Proyek SUP)
         $jiraResult = ['success' => false, 'message' => 'Jira belum dikonfigurasi'];
         try {
@@ -155,6 +213,13 @@ class TicketReportController extends Controller
                         'project'    => JiraService::getProjectKey(),
                         'created_at' => now()->toIso8601String(),
                     ];
+
+                    // JANGAN SAMPAI SCREENSHOT TERTINGGAL: Attach file ke issue Jira SUP!
+                    if (!empty($savedAttachmentPath) && file_exists($savedAttachmentPath) && !empty($ticketData['jira_key'])) {
+                        $attachRes = JiraService::attachFile($ticketData['jira_key'], $savedAttachmentPath, $savedAttachmentName);
+                        $metadata['jira']['attachment'] = $attachRes;
+                        Log::info("[TicketReportController] Screenshot '{$savedAttachmentName}' berhasil dilampirkan ke Jira {$ticketData['jira_key']}");
+                    }
                 }
             }
         } catch (\Throwable $e) {
@@ -172,7 +237,21 @@ class TicketReportController extends Controller
             Log::warning('[TicketReportController] Gagal dispatch notifikasi internal: ' . $e->getMessage());
         }
 
-        // 6. Kirim Pesan WhatsApp #1: Tanda Terima & Magic Link ke Nomor Pelapor
+        // 6. Penanganan WhatsApp Berdasarkan Kategori Laporan (SOP Reset DPMD vs Transaksi Desa)
+        $isAuthIssue = $category === 'akun' || str_contains($category, 'akun') || str_contains(strtolower($featureName), 'login');
+        $dpmdWaStatus = null;
+
+        if ($isAuthIssue) {
+            // Sesuai instruksi: Tautan otorisasi reset HANYA dikirim ke nomor WA Admin DPMD Kabupaten!
+            $dpmdPhone = ChatbotNotificationService::resolveDpmdPhone($ticketData['kabupaten']);
+            if (!empty($dpmdPhone)) {
+                $dpmdResetLink = "{$baseUrl}/api/v1/dpmd/auth-reset/{$ticketNumber}?token={$trackingToken}";
+                $dpmdWaStatus  = ChatbotNotificationService::sendTicketAuthToDpmd($ticketData, $dpmdPhone, $dpmdResetLink);
+                Log::info("[TicketReportController] Permohonan reset akun #{$ticketNumber} diteruskan ke WA Admin DPMD {$dpmdPhone}");
+            }
+        }
+
+        // Kirim Pesan Tanda Terima ke Nomor Pelapor (Dengan edukasi keamanan DPMD jika kendala login)
         $reporterWaStatus = ['success' => false, 'message' => 'Nomor WhatsApp pelapor tidak diisi'];
         if (!empty($cleanPhone)) {
             try {
@@ -188,6 +267,7 @@ class TicketReportController extends Controller
             'telegram'        => $notificationStatus['telegram'] ?? false,
             'whatsapp_team'   => $notificationStatus['whatsapp'] ?? false,
             'whatsapp_pelapor'=> $reporterWaStatus['success'] ?? false,
+            'whatsapp_dpmd'   => $dpmdWaStatus['success'] ?? false,
         ]);
 
         // 7. Simpan Tiket ke Database Terisolasi
@@ -205,6 +285,9 @@ class TicketReportController extends Controller
                 }
             }
 
+            // Hapus kolom non-tabel dari insertData
+            unset($insertData['attachment_path'], $insertData['attachment_name']);
+
             DB::connection($connection)->table($table)->insert($insertData);
         } catch (\Throwable $e) {
             Log::error('[TicketReportController] Gagal menyimpan tiket ke database: ' . $e->getMessage());
@@ -220,7 +303,9 @@ class TicketReportController extends Controller
 
         return response()->json([
             'status'        => 'success',
-            'message'       => 'Tiket laporan kendala Siskeudes TNT berhasil dibuat. Tanda terima dikirimkan ke WhatsApp pelapor.',
+            'message'       => $isAuthIssue
+                ? 'Tiket kendala login berhasil diterbitkan. Tautan otorisasi reset telah diteruskan ke WhatsApp Admin DPMD.'
+                : 'Tiket laporan kendala Siskeudes TNT berhasil dibuat. Tanda terima dikirimkan ke WhatsApp pelapor.',
             'ticket'        => [
                 'ticket_number'      => $ticketNumber,
                 'tracking_token'     => $trackingToken,
@@ -237,12 +322,15 @@ class TicketReportController extends Controller
                 'kode_cms_bank'      => $ticketData['kode_cms_bank'],
                 'description'        => $ticketData['description'],
                 'status'             => 'open',
+                'attachment_url'     => $attachmentUrl,
                 'created_at'         => $ticketData['created_at']->toIso8601String(),
             ],
             'reporter_whatsapp' => $reporterWaStatus,
+            'dpmd_whatsapp'     => $dpmdWaStatus,
             'jira'              => $jiraResult,
             'notifications'     => $notificationStatus,
         ], 201);
+
     }
 
     /**
@@ -1062,4 +1150,132 @@ HTML;
 </html>
 HTML;
     }
+
+    /**
+     * Endpoint untuk mengunduh/melihat berkas screenshot lampiran tiket secara aman.
+     */
+    public function getAttachment(Request $request, string $ticketNumber)
+    {
+        $connection = $this->getConnection();
+        $table      = $this->getTableName();
+
+        $ticket = DB::connection($connection)->table($table)
+            ->where('ticket_number', $ticketNumber)
+            ->first();
+
+        if (!$ticket) {
+            return response()->json(['error' => 'Tiket tidak ditemukan'], 404);
+        }
+
+        $meta = !empty($ticket->metadata) ? json_decode($ticket->metadata, true) : [];
+        $filePath = $meta['attachment']['file_path'] ?? null;
+
+        if (!$filePath || !file_exists($filePath)) {
+            return response()->json(['error' => 'Berkas screenshot lampiran tidak ditemukan di server'], 404);
+        }
+
+        $mime = mime_content_type($filePath) ?: 'image/png';
+        return response()->file($filePath, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="' . basename($filePath) . '"'
+        ]);
+    }
+
+    /**
+     * Endpoint Portal Otorisasi Reset Akun khusus Admin DPMD Kabupaten.
+     * Mengamankan alur verifikasi reset password perangkat desa.
+     */
+    public function handleDpmdAuthReset(Request $request, string $ticketNumber)
+    {
+        $token = $request->query('token');
+        $connection = $this->getConnection();
+        $table      = $this->getTableName();
+
+        $ticket = DB::connection($connection)->table($table)
+            ->where('ticket_number', $ticketNumber)
+            ->first();
+
+        if (!$ticket) {
+            return response($this->renderNotFoundHtml($ticketNumber), 404);
+        }
+
+        if (empty($token) || $ticket->tracking_token !== $token) {
+            return response($this->renderUnauthorizedHtml($ticketNumber), 403);
+        }
+
+        $desa       = htmlspecialchars($ticket->nama_desa ?? 'Desa Terkait');
+        $kabupaten  = htmlspecialchars($ticket->kabupaten ?? 'Kabupaten Terkait');
+        $account    = htmlspecialchars($ticket->user_id ?? '-');
+        $pemohonWa  = htmlspecialchars($ticket->reporter_phone ?? '-');
+        $desc       = htmlspecialchars($ticket->description ?? '-');
+        $ticketNum  = htmlspecialchars($ticket->ticket_number);
+
+        $html = <<<HTML
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Otorisasi DPMD - Reset Akun Siskeudes #{$ticketNum}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 24px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; max-width: 520px; width: 100%; padding: 28px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    .badge { display: inline-block; background: #0284c7; color: white; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-bottom: 12px; }
+    h2 { font-size: 20px; margin: 0 0 16px 0; color: #f1f5f9; }
+    .desc { background: #0f172a; border-left: 4px solid #38bdf8; padding: 12px; border-radius: 4px; font-size: 13.5px; color: #cbd5e1; margin-bottom: 20px; }
+    .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #334155; font-size: 13px; }
+    .item-label { color: #94a3b8; }
+    .item-val { font-weight: 600; color: #f8fafc; }
+    .notice { background: #451a03; border: 1px solid #78350f; color: #fde68a; padding: 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.4; margin: 20px 0; }
+    .actions { display: flex; gap: 10px; }
+    .btn-approve { flex: 1; background: #16a34a; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 700; cursor: pointer; text-align: center; text-decoration: none; font-size: 13px; }
+    .btn-approve:hover { background: #15803d; }
+    .btn-reject { flex: 1; background: #dc2626; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 700; cursor: pointer; text-align: center; text-decoration: none; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">🏛️ OTORISASI ADMIN DPMD</div>
+    <h2>Verifikasi Reset Akun Siskeudes TNT</h2>
+    <div class="desc">
+      Tiket permohonan reset password dari operator desa membutuhkan verifikasi resmi Admin DPMD Kabupaten setempat sebelum sistem memulihkan akses akun.
+    </div>
+
+    <div class="item">
+      <span class="item-label">Nomor Tiket:</span>
+      <span class="item-val">#{$ticketNum}</span>
+    </div>
+    <div class="item">
+      <span class="item-label">Wilayah:</span>
+      <span class="item-val">Desa {$desa}, Kab. {$kabupaten}</span>
+    </div>
+    <div class="item">
+      <span class="item-label">Akun Target:</span>
+      <span class="item-val">{$account}</span>
+    </div>
+    <div class="item">
+      <span class="item-label">No. WA Pemohon:</span>
+      <span class="item-val">{$pemohonWa}</span>
+    </div>
+    <div class="item">
+      <span class="item-label">Keterangan Pemohon:</span>
+      <span class="item-val">{$desc}</span>
+    </div>
+
+    <div class="notice">
+      🛡️ <b>Instruksi Keamanan DPMD:</b> Pastikan pemohon adalah Kaur Keuangan / Perangkat Desa yang sah sebelum menyetujui. Setelah disetujui, tautan reset akan dibuatkan dan dapat diberikan melalui koordinasi resmi DPMD.
+    </div>
+
+    <div class="actions">
+      <a href="javascript:alert('Otorisasi Reset Disetujui. Silakan arahkan operator desa ke kanal resmi DPMD.');" class="btn-approve">✓ Setujui Otorisasi Reset</a>
+      <a href="javascript:alert('Permohonan Reset Ditolak.');" class="btn-reject">✕ Tolak Permohonan</a>
+    </div>
+  </div>
+</body>
+</html>
+HTML;
+
+        return response($html, 200);
+    }
 }
+

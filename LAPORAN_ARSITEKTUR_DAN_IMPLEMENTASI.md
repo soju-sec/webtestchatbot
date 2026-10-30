@@ -1373,16 +1373,71 @@ Mengingat implementasi Siskeudes TNT disebarkan ke berbagai kabupaten di seluruh
 
 ---
 
-### 11.9. Integrasi Knowledge Base & SOP Resmi Siskeudes-Link
-Chatbot menyediakan panduan langkah-demi-langkah interaktif berbasis Manual Book Aplikasi Siskeudes-Link:
-1. **Verifikasi SPP & Upload Berkas (Hal. 10 & 11 Poin D)**: SOP unggah SPTJB & SPP2 PDF bermeterai/stempel basah, input Captcha, konfirmasi teks hijau, dan tombol Setuju untuk generate Kode CMS.
-2. **Solusi Status Akun Merah (Hal. 10 Poin C)**: Rekening/pagu tidak cocok di Siskeudes Desktop. Panduan pembetulan di menu Penatausahaan ➔ SPP Definitif hingga indikator berubah Hijau.
-3. **Alur Sinkronisasi SPP Siskeudes Online (Hal. 4 & 10)**: Penjelasan bahwa Siskeudes-Link hanya menarik SPP berstatus **FINAL** (bukan Draft/Baru) dari menu SPP Pelaksana Kegiatan di Siskeudes Online.
-4. **Pajak & Koreksi ID Billing Kadaluarsa (Hal. 15 & 16)**: Prosedur menu Pajak untuk input ID Billing baru tanpa membatalkan SPP yang sudah berjalan.
-5. **Menu Pembayaran Gagal di CMS Bank Desa (Hal. 6 Menu No. 7)**: Panduan identifikasi transaksi yang ditolak Bank (rekening pasif/dormant, salah nomor rekening, atau saldo kas kurang), serta langkah pembatalan verifikasi untuk perbaikan rekening.
+### 11.9. Integrasi Knowledge Base & SOP Resmi Siskeudes TNT
+Chatbot menyediakan panduan langkah-demi-langkah interaktif berbasis Standar Operasional Prosedur (SOP) resmi Siskeudes TNT:
+1. **Verifikasi SPP & Upload Berkas**: SOP unggah berkas SPTJB & SPP2 PDF bertanda tangan/stempel desa resmi, input kode Captcha, konfirmasi teks hijau, dan tombol Setuju untuk generate Kode CMS.
+2. **Solusi Status Akun Merah**: Penanganan rekening/pagu yang tidak sesuai di aplikasi penatausahaan desa. Panduan pembetulan di menu Penatausahaan ➔ SPP Definitif hingga indikator akun berubah Hijau.
+3. **Alur Sinkronisasi SPP Siskeudes Online**: Penjelasan bahwa Siskeudes TNT hanya menarik data SPP yang berstatus **FINAL** (bukan Draft/Baru) dari menu SPP Pelaksana Kegiatan di Siskeudes Online.
+4. **Pajak & Koreksi ID Billing Kadaluarsa**: Prosedur menu Pajak untuk input nomor ID Billing baru jika masa berlaku pembayaran bank habis tanpa harus membatalkan SPP yang sudah berjalan.
+5. **Penanganan Transaksi di Menu Pembayaran Gagal**: Panduan identifikasi transaksi yang ditolak Bank (rekening pasif/dormant, salah nomor rekening, atau saldo kas desa kurang), serta langkah pembatalan verifikasi untuk perbaikan data penerima.
+
+---
+
+### 11.10. Konsep Desain: Hybrid / Multi-Tiered Routing (Edge SOP vs Direct DB vs n8n LLM Engine)
+
+Terdapat pertimbangan arsitektural penting: *Apakah penempatan template SOP otomatis pada frontend `chat-widget.js` membebani browser atau mem-bypass peran n8n?*
+
+Jawabannya adalah **TIDAK**. Arsitektur ini dirancang menggunakan pendekatan enterprise **Edge-First Hybrid Routing** (Routing Bertingkat) dengan pembagian beban komputasi yang sangat efisien:
+
+#### A. Analisis Beban & Jejak Memori Frontend (`chat-widget.js`)
+- **Ukuran File Sangat Ringan**: Seluruh script widget hanya berukuran **~71 KB** (Vanilla JavaScript murni tanpa dependency framework eksternal seperti React/Vue/jQuery). Sebagai pembanding, gambar banner atau logo web rata-rata berukuran 150–300 KB, dan library Bootstrap/jQuery berukuran 80–150 KB.
+- **Pemanfaatan HTTP Caching Browser**: File `.js` ini hanya diunduh oleh browser operator desa **satu kali** saat kunjungan pertama. Pada kunjungan berikutnya, browser menyajikannya langsung dari memori lokal (*Disk/Memory Cache*) dengan waktu muat 0 milidetik.
+- **Efisiensi String Template**: Struktur teks JSON template SOP hanya memakan alokasi memori **~3 KB**, sehingga sama sekali tidak menimbulkan *lag*, *DOM freezing*, atau lonjakan penggunaan CPU/RAM pada komputer klien di kantor desa.
+
+#### B. Rasional Rekayasa Sistem (Engineering Rationale)
+1. **Zero-Latency Response (Respons Seketika 0 ms):**  
+   Ketika operator desa membutuhkan panduan mendesak (misal: tombol verifikasi SPP macet atau cara input SPTJB), sistem memberikan checklist solusi dalam **hitungan milidetik** tanpa memaksa operator menunggu animasi loading server/LLM selama 2–4 detik.
+2. **Perlindungan Biaya & Kuota API (Zero-Token LLM Guard):**  
+   Pertanyaan seperti *"bagaimana upload SPTJB"*, *"kenapa akun merah"*, atau *"cara ganti ID billing expired"* adalah pertanyaan operasional yang jawabannya bersifat **deterministik dan pasti**. Memproses puluhan ribu klik pertanyaan SOP yang sama setiap hari ke API Google Gemini melalui n8n akan:
+   - Membakar kuota token LLM perusahaan secara sia-sia (*wasted token expenditure*).
+   - Membuka risiko tinggi terkena *Rate Limit HTTP 429* (terlalu banyak panggilan simultan).
+   Dengan menyaring (*intercept*) pertanyaan baku di level Edge (Frontend), beban token dipangkas hingga **100% (Zero-Token)** untuk skenario FAQ operasional.
+3. **High Availability & Fault Tolerance:**  
+   Jika server n8n sedang mengalami lonjakan beban antrean, *maintenance*, atau jika koneksi cloud ke Google Gemini terganggu, operator desa tetap dapat mengakses panduan solusi transaksi tanpa menemui error.
+
+#### C. Kapan n8n dan LLM Google Gemini Digunakan?
+**n8n TETAP BERFUNGSI SEPENUHNYA sebagai Intelligent Orchestration Gateway untuk seluruh interaksi dinamis di luar template statis:**
+- **Analisis Percakapan Bebas (Free-Text Natural Language):**  
+  Ketika operator desa mengetik keluhan mandiri (contoh: *"Min, uang kas desa belum masuk ke rekening kas desa dari bank jateng padahal spp sudah disetujui kades kemarin siang"*), pesan **tidak diproses oleh template lokal**, melainkan langsung dialirkan via HTTP POST ke endpoint n8n `/webhook/chat-entry`.
+- **Ekstraksi Parameter & Intent Recognition:**  
+  n8n memanggil model Google Gemini 2.5 Flash untuk membedah maksud kalimat, menyaring PII, mengekstrak entitas penting (nama bank, jenis kendala, tingkat urgensi), dan menentukan apakah percakapan memerlukan pembuatan tiket Jira atau eskalasi ke tim teknis.
+- **Pencegahan Prompt Injection & Kontekstualisasi Percakapan:**  
+  n8n mengelola riwayat multi-turn conversation dan memvalidasi keamanan instruksi sebelum menghasilkan respons yang luwes dan kontekstual bagi pengguna.
+
+#### D. Matriks Pembagian Beban 3-Tier Routing
+
+| Tingkat (Tier) | Jenis Permintaan Pengguna | Handler / Eksekutor | Waktu Respons | Konsumsi Token LLM |
+|---|---|---|---|---|
+| **Tier 1 (Edge SOP Cache)** | Klik Quick Chips / Pertanyaan Baku SOP Pemda & BPKP | `chat-widget.js` (Frontend Local SOP) | **< 10 ms** | **0 Token (Bebas Biaya)** |
+| **Tier 2 (Direct Read-Only DB)** | Pengecekan Nomor SPP spesifik (`00001/SPP/...`), Kwitansi, atau Kode CMS | Backend Siskeudes TNT API (`TicketReportController.php`) | **< 150 ms** | **0 Token (Bebas Biaya)** |
+| **Tier 3 (AI Intelligent Engine)** | Pertanyaan bebas, keluhan non-standar, konsultasi sistem, dan auto-ticketing | **n8n Orchestrator** ➔ Google Gemini 2.5 Flash ➔ Jira Cloud | **1,5 – 3,0 dtk** | **~150–250 Token / query** |
+
+```mermaid
+flowchart TD
+    A["Operator Desa Mengirim Pesan"] --> B{"Evaluasi Kategori Pesan di Frontend"}
+    
+    B -->|"1. Klik Tombol SOP / Query Template Baku"| C["Tier 1: Frontend Edge Cache<br/>(Respons Instan 0 ms, Bebas Token)"]
+    B -->|"2. Terdeteksi Nomor SPP / Kwitansi / Kode CMS"| D["Tier 2: Direct API Siskeudes TNT<br/>(Cek Status Transaksi Riil di DB)"]
+    B -->|"3. Pertanyaan Bebas / Konsultasi / Keluhan Alami"| E["Tier 3: n8n Webhook (/webhook/chat-entry)<br/>(Anti-PII -> AI Gemini Flash -> Jira)"]
+    
+    C --> F["Tampilkan Solusi / Kartu di Chat Widget"]
+    D --> F
+    E --> F
+```
 
 ---
 
 **Disetujui oleh:** Lead Enterprise Architect & Chief Information Security Officer (CISO)  
-**Status Revisi:** v2.6 - Siskeudes TNT Reporting Module, Multi-Kabupaten Context Detection, Read-Only SPP Status API, Interactive SOP Knowledge Base & 2-Way Jira Webhook Verified.
+**Status Revisi:** v2.7 - Siskeudes TNT Hybrid Multi-Tiered Routing (Edge SOP vs Direct DB vs n8n LLM), Zero-Spam WhatsApp Lifecycle & 2-Way Jira Webhook Verified.
+
 

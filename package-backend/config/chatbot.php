@@ -164,4 +164,23 @@ return [
         'webhook_url'     => env('N8N_WEBHOOK_URL', 'http://127.0.0.1:5678/webhook/chat-entry'),
         'timeout_seconds' => (int) env('CHATBOT_TIMEOUT_SECONDS', 30),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Direktori Kontak Admin DPMD Kabupaten (Otorisasi Reset Akun Desa)
+    |--------------------------------------------------------------------------
+    | Sesuai SOP resmi Siskeudes TNT, jika ada laporan kendala akun / permohonan
+    | reset password dari desa, tautan otorisasi reset TIDAK PERNAH dikirimkan
+    | ke nomor WhatsApp pelapor desa baru, melainkan HANYA dikirimkan ke nomor
+    | WhatsApp resmi Admin DPMD (Dinas Pemberdayaan Masyarakat dan Desa) Kabupaten.
+    |
+    | Format string direktori:
+    | 'Bogor:628123456789,Badung:628198765432,Default:628111222333'
+    */
+    'dpmd' => [
+        'enabled'        => (bool) env('DPMD_ROUTING_ENABLED', true),
+        'default_phone'  => env('DPMD_DEFAULT_PHONE', env('WHATSAPP_TARGET_NUMBER', '')),
+        'directory'      => env('DPMD_DIRECTORY', ''),
+    ],
 ];
+

@@ -57,6 +57,14 @@ Route::get('/v1/reports/store-metrics/excel', [\App\Http\Controllers\Api\ReportE
 Route::get('/tickets/track/{ticketNumber}', [TicketReportController::class, 'track']);
 Route::get('/v1/tickets/track/{ticketNumber}', [TicketReportController::class, 'track']);
 
+// Route publik untuk melihat screenshot attachment tiket secara aman
+Route::get('/tickets/{ticketNumber}/attachment', [TicketReportController::class, 'getAttachment']);
+Route::get('/v1/tickets/{ticketNumber}/attachment', [TicketReportController::class, 'getAttachment']);
+
+// Route khusus portal otorisasi reset akun Admin DPMD Kabupaten
+Route::get('/dpmd/auth-reset/{ticketNumber}', [TicketReportController::class, 'handleDpmdAuthReset']);
+Route::get('/v1/dpmd/auth-reset/{ticketNumber}', [TicketReportController::class, 'handleDpmdAuthReset']);
+
 // Route publik Webhook Jira Cloud (Integrasi 2-Arah untuk auto-notif saat status Resolved)
 Route::match(['get', 'post'], '/jira/webhook', [TicketReportController::class, 'handleJiraWebhook']);
 Route::match(['get', 'post'], '/v1/jira/webhook', [TicketReportController::class, 'handleJiraWebhook']);
@@ -68,6 +76,7 @@ Route::post('/v1/tickets/public-submit', [TicketReportController::class, 'store'
 // Route publik pengecekan status pencairan SPP Siskeudes-Link / CMS Bank
 Route::get('/siskeudes/spp/status', [TicketReportController::class, 'checkSppStatus']);
 Route::get('/v1/siskeudes/spp/status', [TicketReportController::class, 'checkSppStatus']);
+
 
 // 3. Internal Chatbot API (Protected by Internal API Key)
 Route::middleware([VerifyInternalApiKey::class])->prefix('v1')->group(function () {

@@ -117,16 +117,16 @@ return [
     |--------------------------------------------------------------------------
     | SOP & Templating Pertanyaan Resmi Siskeudes-Link TNT & Non-Teknis
     |--------------------------------------------------------------------------
-    | Panduan operasional standar berbasis Manual Book Siskeudes-Link resmi:
-    | 1. Verifikasi SPP & Upload Berkas SPTJB/SPP2 (Hal. 10 & 11)
-    | 2. Status Akun Merah saat Verifikasi SPP (Hal. 10 Poin C)
-    | 3. Sinkronisasi SPP Final Siskeudes Online ke Siskeudes-Link (Hal. 4 & 10)
-    | 4. Koreksi ID Billing Pajak & Potongan Belum Bayar (Hal. 14, 15, 16)
-    | 5. Menu Pembayaran Gagal CMS Bank Desa (Hal. 6 Menu No. 7)
+    | Panduan operasional standar Siskeudes TNT:
+    | 1. Verifikasi SPP & Upload Berkas SPTJB/SPP2
+    | 2. Status Akun Merah saat Verifikasi SPP
+    | 3. Sinkronisasi SPP Final Siskeudes Online ke Siskeudes TNT
+    | 4. Koreksi ID Billing Pajak & Potongan Belum Bayar
+    | 5. Menu Pembayaran Gagal CMS Bank Desa
     */
     'support_templates' => [
         'spp_verifikasi_upload' => [
-            'topic' => 'Verifikasi Data SPP & Upload Berkas SPTJB/SPP2 (Manual Hal. 10 & 11)',
+            'topic' => 'Verifikasi Data SPP & Upload Berkas SPTJB/SPP2',
             'keywords' => ['upload spp', 'sptjb', 'spp2', 'captcha', 'tombol setuju', 'kode cms tidak muncul', 'verifikasi spp', 'gagal upload'],
             'steps' => [
                 'Buka menu <b>Verifikasi SPP</b>, lalu klik tombol <b>Aksi</b> pada baris nomor SPP yang akan diverifikasi.',
@@ -138,46 +138,46 @@ return [
             'escalation' => 'Jika tombol Setuju tetap abu-abu atau Captcha gagal terus, laporkan via Form Kendala Siskeudes agar tim teknis memeriksa modul upload server.'
         ],
         'spp_akun_merah' => [
-            'topic' => 'Status Akun Merah pada Menu Verifikasi SPP (Manual Hal. 10 Poin C)',
+            'topic' => 'Status Akun Merah pada Menu Verifikasi SPP',
             'keywords' => ['akun merah', 'status merah', 'rekening merah', 'tidak bisa verifikasi', 'rekening tidak cocok'],
             'steps' => [
                 'Pada layar Verifikasi SPP, jika indikator akun berwarna <b>MERAH</b>, data tersebut <b>belum dapat diverifikasi</b> karena ada ketidaksesuaian nomor rekening bank atau pagu kas.',
                 'Buka kembali aplikasi <b>Siskeudes Online Desktop</b> di komputer desa.',
                 'Periksa rekening kas desa pada menu Penatausahaan ➔ SPP Definitif, pastikan rekening bank dan rekening rincian belanja sudah sesuai.',
                 'Lakukan perbaikan data di Siskeudes Online hingga valid, lalu simpan.',
-                'Buka kembali Siskeudes-Link; indikator akun akan otomatis berubah menjadi <b>HIJAU</b> dan tombol verifikasi siap digunakan.'
+                'Buka kembali Siskeudes TNT; indikator akun akan otomatis berubah menjadi <b>HIJAU</b> dan tombol verifikasi siap digunakan.'
             ],
             'escalation' => 'Jika rekening di Siskeudes Online sudah dipastikan benar tetapi status di web tetap merah, gunakan tombol Lapor Kendala untuk sinkronisasi master rekening.'
         ],
         'spp_online_sync' => [
-            'topic' => 'SPP dari Siskeudes Online Belum Muncul di Siskeudes-Link (Manual Hal. 4 & 10)',
+            'topic' => 'SPP dari Siskeudes Online Belum Muncul di Siskeudes TNT',
             'keywords' => ['spp tidak muncul', 'spp belum masuk', 'spp online', 'tarik spp', 'spp hilang', 'spp belum ada'],
             'steps' => [
-                'Siskeudes-Link hanya menarik data <b>SPP Definitif</b> yang berstatus <b>FINAL</b> dari aplikasi Siskeudes Online.',
+                'Siskeudes TNT hanya menarik data <b>SPP Definitif</b> yang berstatus <b>FINAL</b> dari aplikasi Siskeudes Online.',
                 'Buka aplikasi Siskeudes Online, masuk ke menu <b>SPP Pelaksana Kegiatan</b>.',
                 'Cari nomor SPP yang bersangkutan, lalu periksa dropdown <b>Status</b> di bagian bawah.',
                 'Ubah status SPP menjadi <b>"Final"</b> (bukan Baru / Draft), lalu klik <b>Simpan</b>.',
-                'Buka kembali browser Siskeudes-Link dan refresh menu <b>Data SPP</b> atau <b>Verifikasi SPP</b>.'
+                'Buka kembali browser Siskeudes TNT dan refresh menu <b>Data SPP</b> atau <b>Verifikasi SPP</b>.'
             ],
-            'escalation' => 'Jika status SPP di Siskeudes Online sudah Final tetapi lebih dari 10 menit belum muncul di Siskeudes-Link, laporkan nomor SPP via Form Kendala Siskeudes.'
+            'escalation' => 'Jika status SPP di Siskeudes Online sudah Final tetapi lebih dari 10 menit belum muncul di Siskeudes TNT, laporkan nomor SPP via Form Kendala Siskeudes.'
         ],
         'pajak_koreksi_id_billing' => [
-            'topic' => 'Koreksi ID Billing Pajak & Potongan Belum Bayar (Manual Hal. 14, 15, 16)',
+            'topic' => 'Koreksi ID Billing Pajak & Potongan Belum Bayar',
             'keywords' => ['id billing', 'billing pajak', 'pajak belum bayar', 'koreksi billing', 'ntpn', 'billing kedaluwarsa'],
             'steps' => [
-                'Untuk memeriksa daftar potongan pajak yang belum dibayarkan melalui CMS Bank, masuk ke menu <b>Koreksi ID Billing Pajak</b> (Bab 2.7).',
+                'Untuk memeriksa daftar potongan pajak yang belum dibayarkan melalui CMS Bank, masuk ke menu <b>Koreksi ID Billing Pajak</b>.',
                 'Jika kode billing pajak sudah kedaluwarsa (*expired*), generate ID Billing baru di DJP Online atau Siskeudes.',
                 'Masukkan nomor ID Billing baru pada kolom koreksi di baris potongan pajak terkait.',
                 'Lanjutkan proses pembayaran potongan pajak melalui aplikasi CMS Bank Desa.',
                 'Setelah sukses terdebet, bukti nomor <b>NTPN</b> dan <b>NTB</b> akan otomatis tercatat dan berpindah ke menu <b>Pajak (Daftar Potongan Pajak yang Sudah Dibayarkan)</b>.'
             ],
-            'escalation' => 'Jika pajak sudah didebet di bank tetapi NTPN tidak muncul di menu Pajak Siskeudes-Link, buatkan tiket dengan melampirkan No. Bukti/Kwitansi.'
+            'escalation' => 'Jika pajak sudah didebet di bank tetapi NTPN tidak muncul di menu Pajak Siskeudes TNT, buatkan tiket dengan melampirkan No. Bukti/Kwitansi.'
         ],
         'pembayaran_gagal_bank' => [
-            'topic' => 'Penanganan Menu Pembayaran Gagal di CMS Bank (Manual Hal. 6 Menu No. 7)',
+            'topic' => 'Penanganan Menu Pembayaran Gagal di CMS Bank',
             'keywords' => ['pembayaran gagal', 'gagal debet', 'rekening pasif', 'saldo tidak cukup', 'cms bank tolak', 'transaksi ditolak'],
             'steps' => [
-                'Klik menu <b>Pembayaran Gagal</b> pada navigasi utama Siskeudes-Link untuk melihat daftar transaksi yang ditolak oleh sistem perbankan.',
+                'Klik menu <b>Pembayaran Gagal</b> pada navigasi utama Siskeudes TNT untuk melihat daftar transaksi yang ditolak oleh sistem perbankan.',
                 'Periksa kolom keterangan penolakan; penyebab umum antara lain: <b>Rekening Penerima Tidak Aktif/Pasif</b>, <b>Nama & Nomor Rekening Tidak Cocok</b>, atau <b>Saldo Kas Desa Tidak Cukupi</b>.',
                 'Jika rekening penerima pasif, hubungi rekanan/penerima untuk memastikan nomor rekening valid dan aktif.',
                 'Jika saldo kurang, koordinasikan dengan Bank BPD mitra untuk rekonsiliasi mutasi kas desa.'

@@ -439,6 +439,89 @@ class ChatbotNotificationService
      * @param string $magicLink URL Magic Tracking Link pelapor
      * @return array Status pengiriman
      */
+    /**
+     * Menyelesaikan nomor WhatsApp Admin DPMD Kabupaten berdasarkan nama Kabupaten.
+     * Mengambil dari konfigurasi chatbot.dpmd.directory atau fallback default.
+     *
+     * @param string|null $kabupaten Nama Kabupaten
+     * @return string|null Nomor WhatsApp (format internasional angka, misal 62812...)
+     */
+    public static function resolveDpmdPhone(?string $kabupaten): ?string
+    {
+        $default = config('chatbot.dpmd.default_phone', env('DPMD_DEFAULT_PHONE', env('WHATSAPP_TARGET_NUMBER', '')));
+        if (empty($kabupaten)) {
+            return !empty($default) ? preg_replace('/[^0-9]/', '', $default) : null;
+        }
+
+        $directory = config('chatbot.dpmd.directory', env('DPMD_DIRECTORY', ''));
+        if (empty($directory)) {
+            return !empty($default) ? preg_replace('/[^0-9]/', '', $default) : null;
+        }
+
+        // Format direktori: 'Bogor:628123456789,Badung:628198765432,Default:628111222333'
+        $cleanKab = strtolower(trim(preg_replace('/^(?:kabupaten|kab\.?)\s+/i', '', $kabupaten)));
+        $entries = explode(',', $directory);
+
+        foreach ($entries as $entry) {
+            $parts = explode(':', trim($entry), 2);
+            if (count($parts) === 2) {
+                $dirKab   = strtolower(trim(preg_replace('/^(?:kabupaten|kab\.?)\s+/i', '', $parts[0])));
+                $dirPhone = preg_replace('/[^0-9]/', '', trim($parts[1]));
+
+                if ($dirKab === $cleanKab && !empty($dirPhone)) {
+                    return $dirPhone;
+                }
+            }
+        }
+
+        return !empty($default) ? preg_replace('/[^0-9]/', '', $default) : null;
+    }
+
+    /**
+     * Mengirimkan Notifikasi Permohonan Reset Akun ke WhatsApp Admin DPMD Kabupaten.
+     * Sesuai alur resmi Siskeudes, tautan otorisasi reset HANYA dikirim ke Admin DPMD.
+     *
+     * @param array $ticket Data tiket lengkap
+     * @param string $dpmdPhone Nomor WhatsApp Admin DPMD
+     * @param string $resetLink Tautan otorisasi reset resmi DPMD
+     * @return array Status pengiriman
+     */
+    public static function sendTicketAuthToDpmd(array $ticket, string $dpmdPhone, string $resetLink): array
+    {
+        $ticketNumber = $ticket['ticket_number'] ?? 'TCK-BARU';
+        $kabupaten    = $ticket['kabupaten'] ?? '-';
+        $desa         = $ticket['nama_desa'] ?? '-';
+        $accountUser  = $ticket['user_id'] ?? '-';
+        $reporterPhone= $ticket['reporter_phone'] ?? '-';
+        $desc         = $ticket['description'] ?? 'Lupa password / akun terkunci';
+        $createdAt    = date('d M Y, H:i') . ' WIB';
+
+        $msg = "🏛️ *[PERMOHONAN RESET AKUN SISKEUDES - OTORISASI DPMD]*\n\n"
+            . "Yth. *Admin DPMD Kab. {$kabupaten}*,\n"
+            . "Terdapat permohonan pemulihan akses / reset kata sandi Siskeudes TNT yang diajukan dari wilayah Anda:\n\n"
+            . "📋 *Rincian Tiket Pemohon:*\n"
+            . "• *No. Tiket*: `{$ticketNumber}`\n"
+            . "• *Instansi Wilayah*: Desa {$desa}, Kab. {$kabupaten}\n"
+            . "• *Akun yang Diminta*: `{$accountUser}`\n"
+            . "• *No. WhatsApp Pemohon*: `{$reporterPhone}`\n"
+            . "• *Keterangan*: \"_{$desc}_\"\n"
+            . "• *Waktu*: {$createdAt}\n\n"
+            . "🔐 *Tautan Otorisasi & Reset Akun (Khusus Admin DPMD):*\n"
+            . "Jika permohonan ini sah dari perangkat desa yang bersangkutan, silakan buka tautan berikut untuk memproses verifikasi dan reset kata sandi:\n"
+            . "👉 {$resetLink}\n\n"
+            . "⚠️ _Catatan Keamanan: Sesuai SOP resmi, tautan reset HANYA dikirim ke Admin DPMD dan TIDAK diberikan kepada nomor pemohon desa secara otomatis._";
+
+        return self::sendWhatsAppMessage($dpmdPhone, $msg);
+    }
+
+    /**
+     * Mengirimkan Pesan WhatsApp #1: Tanda Terima Pelaporan & Magic Tracking Link ke Pelapor.
+     * Hanya dikirim 1x saat tiket berhasil dibuat.
+     *
+     * @param array $ticket Data tiket lengkap
+     * @param string $magicLink URL Magic Tracking Link pelapor
+     * @return array Status pengiriman
+     */
     public static function sendTicketReceiptToReporter(array $ticket, string $magicLink): array
     {
         $target = $ticket['reporter_phone'] ?? null;
@@ -456,6 +539,30 @@ class ChatbotNotificationService
         $featureName  = $ticket['feature_name'] ?? 'Siskeudes TNT / CMS Bank';
         $categoryName = self::formatCategory($ticket['category'] ?? 'siskeudes_tnt');
         $createdAt    = date('d M Y, H:i') . ' WIB';
+
+        // Khusus jika kategori adalah kendala Login / Autentikasi / Akun
+        $category = strtolower($ticket['category'] ?? '');
+        $isAuthIssue = $category === 'akun' || str_contains($category, 'akun') || str_contains(strtolower($featureName), 'login');
+
+        if ($isAuthIssue) {
+            $msg = "🎫 *[TANDA TERIMA LAPORAN KENDALA LOGIN & AKUN]*\n\n"
+                . "Yth. *{$userName}*,\n"
+                . "Laporan kendala login/pemulihan akun Siskeudes TNT Anda telah berhasil kami terima dan dicatat resmi dengan nomor tiket *`{$ticketNumber}`*.\n\n"
+                . "📋 *Rincian Laporan:*\n"
+                . "• *No. Tiket*: `{$ticketNumber}`\n"
+                . "• *Wilayah*: Desa {$desa}, Kab. {$kabupaten}\n"
+                . "• *Akun yang Dilaporkan*: `{$ticket['user_id']}`\n"
+                . "• *Status*: *DITERUSKAN KE ADMIN DPMD*\n"
+                . "• *Waktu*: {$createdAt}\n\n"
+                . "🏛️ *PROSEDUR KEAMANAN RESMI (ANTI-PEMBAJAKAN AKUN):*\n"
+                . "Demi menjaga integritas kas dan akun keuangan desa, tautan otorisasi reset kata sandi *TIDAK PERNAH DIKIRIMKAN* ke nomor WhatsApp pelapor baru.\n\n"
+                . "Tautan otorisasi pemulihan akun telah *DITERUSKAN LANGSUNG KE WHATSAPP ADMIN DPMD KAB. " . strtoupper($kabupaten) . "*.\n"
+                . "Silakan berkoordinasi langsung dengan Admin DPMD setempat dengan menunjukkan *Nomor Tiket: `{$ticketNumber}`* untuk memproses buka blokir / reset kata sandi Anda.\n\n"
+                . "🔍 *Pantau Status Penanganan Tiket:*\n"
+                . "👉 {$magicLink}";
+
+            return self::sendWhatsAppMessage($target, $msg);
+        }
 
         $msg = "🎫 *[TANDA TERIMA LAPORAN KENDALA SISKEUDES-LINK]*\n\n"
             . "Yth. *{$userName}*,\n"
@@ -488,6 +595,7 @@ class ChatbotNotificationService
 
         return self::sendWhatsAppMessage($target, $msg);
     }
+
 
     /**
      * Mengirimkan Pesan WhatsApp #2: Hasil Penanganan Tiket Selesai (Solved / Resolved) ke Pelapor.

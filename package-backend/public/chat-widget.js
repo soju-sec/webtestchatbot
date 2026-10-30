@@ -254,6 +254,15 @@
       .ai-tab-btn.inactive { background: transparent; color: #64748b; }
       .ai-tab-btn.inactive:hover { background: #e2e8f0; color: #1e293b; }
 
+      /* Screenshot Attachment Preview & Upload */
+      .ai-file-upload-box { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+      .ai-file-btn { background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 6px; padding: 5px 9px; font-size: 11px; cursor: pointer; color: #334155; font-weight: 600; transition: all 0.2s; }
+      .ai-file-btn:hover { background: #eff6ff; border-color: #2563eb; color: #2563eb; }
+      .ai-file-name { font-size: 11px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+      .ai-file-clear { background: #fee2e2; border: none; color: #dc2626; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 10px; font-weight: 700; }
+      .ai-file-preview { margin-top: 6px; border-radius: 6px; overflow: hidden; border: 1px solid #e2e8f0; max-height: 100px; text-align: center; background: #0f172a; }
+      .ai-file-preview img { max-height: 100px; max-width: 100%; object-fit: contain; }
+
       /* Chat Form */
       #ai-chat-form { display: flex; border-top: 1px solid #e2e8f0; padding: 10px; background: #fff; gap: 6px; align-items: center; }
       #ai-chat-input { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 12px; outline: none; font-size: 13px; transition: border-color 0.2s; }
@@ -299,7 +308,7 @@
           <input type="text" id="ai-login-account" class="ai-drawer-input" placeholder="Contoh: kaur.keuangan@desa.id atau kaur_sukamaju" required />
 
           <label class="ai-drawer-label">No. WhatsApp Pelapor: *</label>
-          <input type="tel" id="ai-login-phone" class="ai-drawer-input" placeholder="Contoh: 08123456789 (Hasil & link buka blokir dikirim ke sini)" required />
+          <input type="tel" id="ai-login-phone" class="ai-drawer-input" placeholder="Contoh: 08123456789 (Hanya untuk pemantauan status tiket)" required />
 
           <label class="ai-drawer-label">Jenis Masalah Login: *</label>
           <select id="ai-login-issue-type" class="ai-drawer-input" style="background: #fff; cursor: pointer;">
@@ -324,8 +333,18 @@
           <label class="ai-drawer-label">Keterangan Tambahan / Pesan Error: *</label>
           <textarea id="ai-login-desc" class="ai-drawer-textarea" rows="2" placeholder="Jelaskan pesan error yang muncul saat mencoba masuk..." required></textarea>
 
-          <div class="ai-drawer-notice" style="background: #fef2f2; border-color: #fecaca; color: #991b1b;">
-            🔐 <b>Langsung Diteruskan ke Admin IT:</b> Tiket diprioritaskan untuk pembukaan blokir akun atau reset kata sandi. Tanda terima & link pelacak mandiri akan dikirim via WhatsApp.
+          <label class="ai-drawer-label">📎 Screenshot Bukti Error (Opsional):</label>
+          <div class="ai-file-upload-box">
+            <input type="file" id="ai-login-file" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+            <button type="button" class="ai-file-btn" id="ai-login-file-btn">📎 Pilih / Tempel Foto (Ctrl+V)</button>
+            <span id="ai-login-file-name" class="ai-file-name">Belum ada foto</span>
+            <button type="button" id="ai-login-file-clear" class="ai-file-clear" style="display:none;">✕</button>
+          </div>
+          <div id="ai-login-preview" class="ai-file-preview" style="display:none;"></div>
+
+          <div class="ai-drawer-notice" style="background: #eff6ff; border-color: #bfdbfe; color: #1e40af;">
+            🏛️ <b>Prosedur Keamanan Akun Siskeudes TNT:</b><br>
+            Tiket bantuan akan diterbitkan resmi. Sesuai SOP perlindungan kas desa, tautan otorisasi reset kata sandi <b>HANYA diteruskan ke nomor WhatsApp Admin DPMD Kabupaten setempat</b>. Pelapor akan menerima tanda terima untuk memantau status tiket.
           </div>
 
           <div class="ai-drawer-actions">
@@ -375,6 +394,15 @@
           <label class="ai-drawer-label">Keterangan / Kendala Transaksi: *</label>
           <textarea id="ai-issue-desc" class="ai-drawer-textarea" rows="2" placeholder="Jelaskan kendala transaksi atau error yang muncul..." required></textarea>
 
+          <label class="ai-drawer-label">📎 Screenshot Bukti Kendala / SPP (Opsional):</label>
+          <div class="ai-file-upload-box">
+            <input type="file" id="ai-tx-file" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+            <button type="button" class="ai-file-btn" id="ai-tx-file-btn">📎 Pilih / Tempel Foto (Ctrl+V)</button>
+            <span id="ai-tx-file-name" class="ai-file-name">Belum ada foto</span>
+            <button type="button" id="ai-tx-file-clear" class="ai-file-clear" style="display:none;">✕</button>
+          </div>
+          <div id="ai-tx-preview" class="ai-file-preview" style="display:none;"></div>
+
           <div class="ai-drawer-notice">
             📱 <b>Hemat Kuota WA & Bebas Spam:</b> Tanda terima & Link Lacak Mandiri akan dikirimkan ke No. WhatsApp Anda. Hasil akhir akan dikabari kembali saat kendala selesai.
           </div>
@@ -409,10 +437,10 @@
               <button type="button" class="ai-chip-btn ai-chip-issue" id="ai-btn-open-issue-form">🚨 Form Lapor Kendala Siskeudes</button>
               <button type="button" class="ai-chip-btn" id="ai-btn-open-login-from-dash">🔑 Bantuan Akun / Login</button>
               <button type="button" class="ai-chip-btn" data-query="Cek status pencairan SPP">💸 Cek Pencairan SPP</button>
-              <button type="button" class="ai-chip-btn" data-query="SOP verifikasi SPP dan upload SPTJB/SPP2 (Hal 10)">📋 SOP Verifikasi SPP</button>
-              <button type="button" class="ai-chip-btn" data-query="Kenapa status akun berwarna merah saat verifikasi SPP? (Hal 10)">🔴 Solusi Akun Merah</button>
-              <button type="button" class="ai-chip-btn" data-query="Bagaimana cara koreksi ID Billing Pajak kadaluarsa? (Hal 15)">📑 Koreksi ID Billing</button>
-              <button type="button" class="ai-chip-btn" data-query="Penyebab transaksi masuk menu Pembayaran Gagal di CMS Bank Desa? (Hal 6)">❌ Menu Pembayaran Gagal</button>
+              <button type="button" class="ai-chip-btn" data-query="SOP verifikasi SPP dan upload SPTJB/SPP2">📋 SOP Verifikasi SPP</button>
+              <button type="button" class="ai-chip-btn" data-query="Kenapa status akun berwarna merah saat verifikasi SPP?">🔴 Solusi Akun Merah</button>
+              <button type="button" class="ai-chip-btn" data-query="Bagaimana cara koreksi ID Billing Pajak kadaluarsa?">📑 Koreksi ID Billing</button>
+              <button type="button" class="ai-chip-btn" data-query="Penyebab transaksi masuk menu Pembayaran Gagal di CMS Bank Desa?">❌ Menu Pembayaran Gagal</button>
             `}
           </div>
         </div>
@@ -438,6 +466,77 @@
   const drawerCancel = document.getElementById('ai-issue-cancel');
   const drawerSubmit = document.getElementById('ai-issue-submit');
   const chipIssueBtn = document.getElementById('ai-btn-open-issue-form');
+
+  // State Lampiran Screenshot
+  let loginScreenshot = { base64: null, name: null };
+  let txScreenshot = { base64: null, name: null };
+
+  function handleFileSelection(file, type) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Mohon pilih berkas gambar (PNG, JPG, WebP).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Ukuran berkas screenshot maksimal 5 MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result;
+      const fileName = file.name || ('screenshot_' + Date.now() + '.png');
+
+      if (type === 'login') {
+        loginScreenshot = { base64: base64, name: fileName };
+        const nameEl = document.getElementById('ai-login-file-name');
+        const clearBtn = document.getElementById('ai-login-file-clear');
+        const prevEl = document.getElementById('ai-login-preview');
+        if (nameEl) nameEl.textContent = fileName;
+        if (clearBtn) clearBtn.style.display = 'inline-block';
+        if (prevEl) {
+          prevEl.innerHTML = '<img src="' + base64 + '" alt="Preview Screenshot" />';
+          prevEl.style.display = 'block';
+        }
+      } else {
+        txScreenshot = { base64: base64, name: fileName };
+        const nameEl = document.getElementById('ai-tx-file-name');
+        const clearBtn = document.getElementById('ai-tx-file-clear');
+        const prevEl = document.getElementById('ai-tx-preview');
+        if (nameEl) nameEl.textContent = fileName;
+        if (clearBtn) clearBtn.style.display = 'inline-block';
+        if (prevEl) {
+          prevEl.innerHTML = '<img src="' + base64 + '" alt="Preview Screenshot" />';
+          prevEl.style.display = 'block';
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearAttachment(type) {
+    if (type === 'login') {
+      loginScreenshot = { base64: null, name: null };
+      const fileInput = document.getElementById('ai-login-file');
+      if (fileInput) fileInput.value = '';
+      const nameEl = document.getElementById('ai-login-file-name');
+      const clearBtn = document.getElementById('ai-login-file-clear');
+      const prevEl = document.getElementById('ai-login-preview');
+      if (nameEl) nameEl.textContent = 'Belum ada foto';
+      if (clearBtn) clearBtn.style.display = 'none';
+      if (prevEl) { prevEl.innerHTML = ''; prevEl.style.display = 'none'; }
+    } else {
+      txScreenshot = { base64: null, name: null };
+      const fileInput = document.getElementById('ai-tx-file');
+      if (fileInput) fileInput.value = '';
+      const nameEl = document.getElementById('ai-tx-file-name');
+      const clearBtn = document.getElementById('ai-tx-file-clear');
+      const prevEl = document.getElementById('ai-tx-preview');
+      if (nameEl) nameEl.textContent = 'Belum ada foto';
+      if (clearBtn) clearBtn.style.display = 'none';
+      if (prevEl) { prevEl.innerHTML = ''; prevEl.style.display = 'none'; }
+    }
+  }
 
   // Tab & Login Elements
   const tabBtnLogin = document.getElementById('ai-tab-btn-login');
@@ -536,6 +635,52 @@
     loginCancel.addEventListener('click', () => toggleDrawer(false));
   }
 
+  // File trigger & clear listeners
+  const loginFileBtn = document.getElementById('ai-login-file-btn');
+  const loginFileInput = document.getElementById('ai-login-file');
+  const loginFileClear = document.getElementById('ai-login-file-clear');
+  if (loginFileBtn && loginFileInput) {
+    loginFileBtn.addEventListener('click', () => loginFileInput.click());
+    loginFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) handleFileSelection(e.target.files[0], 'login');
+    });
+  }
+  if (loginFileClear) {
+    loginFileClear.addEventListener('click', () => clearAttachment('login'));
+  }
+
+  const txFileBtn = document.getElementById('ai-tx-file-btn');
+  const txFileInput = document.getElementById('ai-tx-file');
+  const txFileClear = document.getElementById('ai-tx-file-clear');
+  if (txFileBtn && txFileInput) {
+    txFileBtn.addEventListener('click', () => txFileInput.click());
+    txFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) handleFileSelection(e.target.files[0], 'tx');
+    });
+  }
+  if (txFileClear) {
+    txFileClear.addEventListener('click', () => clearAttachment('tx'));
+  }
+
+  // Dukungan Paste dari Clipboard (Ctrl+V) saat Drawer terbuka
+  window.addEventListener('paste', (e) => {
+    if (issueDrawer && issueDrawer.style.display === 'block') {
+      const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type && items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            const activeTab = (formLoginEl && formLoginEl.style.display === 'block') ? 'login' : 'tx';
+            handleFileSelection(blob, activeTab);
+            e.preventDefault();
+            break;
+          }
+        }
+      }
+    }
+  });
+
   // Handle Submit Formulir Kendala Login
   if (loginSubmit) {
     loginSubmit.addEventListener('click', async () => {
@@ -585,7 +730,9 @@
         feature_name: 'Autentikasi & Login Siskeudes',
         description: `[Kendala: ${issueType}] Akun: ${account}. Keterangan: ${desc}`,
         urgency: 'tinggi',
-        channel: IS_LOGIN_MODE ? 'web_login_page' : 'web'
+        channel: IS_LOGIN_MODE ? 'web_login_page' : 'web',
+        screenshot: loginScreenshot.base64,
+        screenshot_name: loginScreenshot.name
       };
 
       try {
@@ -619,9 +766,12 @@
           const ticketNumber = t.ticket_number;
           const magicLink = t.magic_link || `${backendUrl}/api/v1/tickets/track/${ticketNumber}?token=${t.tracking_token || ''}`;
 
-          let botText = `🎫 <b>Tiket Bantuan Kendala Login Berhasil Diterbitkan!</b><br><br>`
-            + `Laporan pemulihan akses akun <b>${account}</b> telah diteruskan ke Admin IT Siskeudes TNT untuk segera ditindaklanjuti.<br>`
-            + `Tanda terima dan tautan pemantauan mandiri telah dikirimkan ke WhatsApp <b>${phone}</b>.`;
+          let botText = `🎫 <b>Tiket Bantuan Kendala Login Berhasil Diterbitkan! (#${ticketNumber})</b><br><br>`
+            + `Laporan pemulihan akses akun <b>${account}</b> telah dicatat resmi.<br>`
+            + `🏛️ <b>Tindak Lanjut Keamanan DPMD:</b> Sesuai SOP resmi perlindungan kas desa, tautan otorisasi reset kata sandi telah diteruskan langsung ke WhatsApp <b>Admin DPMD Kab. ${kabupaten || siskeudesContext.kabupaten || '-'}</b>.<br>`
+            + `Tanda terima dan tautan pemantauan mandiri telah dikirimkan ke WhatsApp Anda (<b>${phone}</b>) untuk koordinasi dengan Admin DPMD.`
+            + (loginScreenshot.base64 ? `<br>📎 <i>Bukti screenshot error berhasil dilampirkan ke Jira SUP.</i>` : '');
+          clearAttachment('login');
 
           appendMsg('bot', botText, 'report_customer_issue', {
             is_ticket_report: true,
@@ -739,7 +889,9 @@
         feature_name: 'Siskeudes TNT / CMS Bank',
         category: 'siskeudes_tnt',
         urgency: 'tinggi',
-        channel: 'web'
+        channel: 'web',
+        screenshot: txScreenshot.base64,
+        screenshot_name: txScreenshot.name
       };
 
       try {
@@ -775,7 +927,9 @@
           const magicLink = t.magic_link || `${backendUrl}/api/v1/tickets/track/${ticketNumber}?token=${t.tracking_token || ''}`;
 
           let botText = `🎫 <b>Laporan Kendala Siskeudes Berhasil Dibuat!</b><br><br>`
-            + `Halo <b>Desa ${desa}</b>, laporan Anda telah terdaftar resmi dalam antrean penanganan teknis tim kami.`;
+            + `Halo <b>Desa ${desa}</b>, laporan Anda telah terdaftar resmi dalam antrean penanganan teknis tim kami.`
+            + (txScreenshot.base64 ? `<br>📎 <i>Bukti screenshot telah berhasil dilampirkan ke tiket Jira Service Management.</i>` : '');
+          clearAttachment('tx');
 
           appendMsg('bot', botText, 'report_customer_issue', {
             is_ticket_report: true,
@@ -978,7 +1132,7 @@
     const loadingDiv = document.createElement('div');
     loadingDiv.id = loadingId;
     loadingDiv.className = 'ai-msg loading';
-    loadingDiv.innerText = `Menghubungi API Siskeudes-Link untuk mengecek status pencairan SPP/CMS [${sppKey}]...`;
+    loadingDiv.innerText = `Menghubungi API Siskeudes TNT untuk mengecek status pencairan SPP/CMS [${sppKey}]...`;
     msgContainer.appendChild(loadingDiv);
     msgContainer.scrollTop = msgContainer.scrollHeight;
 
@@ -1002,7 +1156,7 @@
         let html = `
           <div style="font-size: 13px; line-height: 1.45;">
             <b>Hasil Pengecekan Status Pencairan SPP</b><br>
-            <span style="font-size: 11px; color: #64748b;">Sumber: API Siskeudes-Link &bull; CMS Bank Desa</span>
+            <span style="font-size: 11px; color: #64748b;">Sumber: API Siskeudes TNT &bull; CMS Bank Desa</span>
             <div style="background: #ffffff; border: 1.5px solid ${isCair ? '#a7f3d0' : '#fed7aa'}; border-radius: 8px; padding: 10px; margin-top: 8px;">
               <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 6px;">
                 <span style="font-weight: 700; color: #1e3a8a; font-family: monospace;">${s.no_spp}</span>
@@ -1074,10 +1228,10 @@
       escalation: 'Jika akun masih terkunci atau tidak menerima email reset, klik tombol di bawah untuk membuat laporan langsung ke Helpdesk IT.'
     },
     spp_verifikasi: {
-      regex: /(?:verifikasi\s*spp|upload\s*sptjb|upload\s*spp2|upload\s*berkas|captcha|tombol\s*setuju|hal(?:aman)?\s*10(?:\s*poin\s*d)?)/i,
-      title: '📋 SOP Verifikasi SPP & Upload SPTJB/SPP2 (Manual Hal. 10 Poin D)',
+      regex: /(?:verifikasi\s*spp|upload\s*sptjb|upload\s*spp2|upload\s*berkas|captcha|tombol\s*setuju)/i,
+      title: '📋 SOP Verifikasi SPP & Upload SPTJB/SPP2',
       steps: [
-        'Buka menu <b>Verifikasi SPP</b> di aplikasi Siskeudes-Link.',
+        'Buka menu <b>Verifikasi SPP</b> di aplikasi Siskeudes TNT.',
         'Klik tombol <b>Aksi (Detail)</b> pada baris SPP yang akan diverifikasi.',
         'Unggah berkas <b>SPTJB</b> (Surat Pernyataan Tanggung Jawab Belanja) bertanda tangan basah/stempel desa format PDF.',
         'Unggah berkas <b>SPP2</b> yang telah diverifikasi kelengkapannya.',
@@ -1089,34 +1243,34 @@
     },
     spp_akun_merah: {
       regex: /(?:akun\s*merah|status\s*merah|rekening\s*merah|merah\s*saat\s*verifikasi)/i,
-      title: '🔴 Solusi Status Akun Merah saat Verifikasi SPP (Manual Hal. 10 Poin C)',
+      title: '🔴 Solusi Status Akun Merah saat Verifikasi SPP',
       steps: [
         'Indikator akun berwarna <b>MERAH</b> menandakan adanya ketidaksesuaian nomor rekening bank atau pagu kas anggaran di Siskeudes Online.',
         'Buka kembali aplikasi <b>Siskeudes Online Desktop</b> di komputer desa.',
         'Masuk ke menu <b>Penatausahaan ➔ SPP Definitif</b>.',
         'Periksa rekening kas desa pada menu tersebut, pastikan rekening bank dan rekening rincian belanja sudah sesuai.',
         'Lakukan pembetulan data hingga valid, lalu simpan perubahan.',
-        'Refresh halaman Siskeudes-Link; indikator akan otomatis berubah menjadi <b>HIJAU</b> dan tombol verifikasi dapat diklik.'
+        'Refresh halaman Siskeudes TNT; indikator akan otomatis berubah menjadi <b>HIJAU</b> dan tombol verifikasi dapat diklik.'
       ],
       escalation: 'Bila data di Siskeudes Online sudah hijau namun di web tetap merah, laporkan kendala sinkronisasi master rekening via Form Lapor.'
     },
     spp_online_sync: {
       regex: /(?:alur\s*spp|spp\s*online|spp\s*belum\s*muncul|spp\s*tidak\s*ada|tarik\s*spp)/i,
-      title: '🔄 Alur SPP Siskeudes Online ke Siskeudes-Link (Manual Hal. 4 & 10)',
+      title: '🔄 Alur SPP Siskeudes Online ke Siskeudes TNT',
       steps: [
-        'Aplikasi Siskeudes-Link hanya menarik data SPP yang telah berstatus <b>FINAL</b> di Siskeudes Online.',
+        'Aplikasi Siskeudes TNT hanya menarik data SPP yang telah berstatus <b>FINAL</b> di Siskeudes Online.',
         'Buka aplikasi Siskeudes Online Desktop, masuk ke menu <b>SPP Pelaksana Kegiatan</b>.',
         'Pilih nomor SPP yang bersangkutan, ubah status dropdown dari Draft/Baru menjadi <b>"Final"</b>.',
         'Klik tombol <b>Simpan</b>.',
-        'Buka kembali web Siskeudes-Link, buka menu <b>Data SPP</b> atau <b>Verifikasi SPP</b>, data akan otomatis tersinkronisasi.'
+        'Buka kembali web Siskeudes TNT, buka menu <b>Data SPP</b> atau <b>Verifikasi SPP</b>, data akan otomatis tersinkronisasi.'
       ],
       escalation: 'Jika sudah berstatus Final tetapi belum muncul lebih dari 15 menit, lakukan sinkronisasi manual atau hubungi helpdesk.'
     },
     pajak_koreksi: {
-      regex: /(?:koreksi\s*id\s*billing|id\s*billing|pajak\s*kadaluarsa|billing\s*kadaluarsa|pajak|hal(?:aman)?\s*15|hal(?:aman)?\s*16)/i,
-      title: '📑 SOP Pajak & Koreksi ID Billing Kadaluarsa (Manual Hal. 15 & 16)',
+      regex: /(?:koreksi\s*id\s*billing|id\s*billing|pajak\s*kadaluarsa|billing\s*kadaluarsa|pajak)/i,
+      title: '📑 SOP Pajak & Koreksi ID Billing Kadaluarsa',
       steps: [
-        'Buka menu <b>Pajak</b> di panel navigasi Siskeudes-Link.',
+        'Buka menu <b>Pajak</b> di panel navigasi Siskeudes TNT.',
         'Cari daftar potongan pajak dengan status <i>"Belum Bayar"</i> atau <i>"Billing Expired"</i>.',
         'Klik tombol <b>Koreksi ID Billing</b> pada baris transaksi pajak terkait.',
         'Ketikkan kode ID Billing baru yang diterbitkan oleh DJP Online / BPD.',
@@ -1126,10 +1280,10 @@
       escalation: 'Jangan membatalkan SPP hanya karena ID Billing expired, cukup lakukan koreksi ID Billing pada menu Pajak.'
     },
     pembayaran_gagal: {
-      regex: /(?:pembayaran\s*gagal|gagal\s*bank|menu\s*no\.?\s*7|menu\s*7|cms\s*bank\s*gagal|hal(?:aman)?\s*6)/i,
-      title: '❌ Menu Pembayaran Gagal di CMS Bank Desa (Manual Hal. 6 Menu No. 7)',
+      regex: /(?:pembayaran\s*gagal|gagal\s*bank|cms\s*bank\s*gagal)/i,
+      title: '❌ Penanganan Transaksi di Menu Pembayaran Gagal',
       steps: [
-        'Buka menu navigasi utama nomor 7: <b>Pembayaran Gagal</b> di Siskeudes-Link.',
+        'Buka menu <b>Pembayaran Gagal</b> pada navigasi Siskeudes TNT.',
         'Menu ini mencatat seluruh transaksi SPP yang ditolak oleh sistem core-banking CMS Bank Desa.',
         'Penyebab umum: Rekening tujuan pasif/dormant, salah nomor rekening, atau saldo rekening kas desa tidak mencukupi.',
         'Cek kolom <b>Keterangan Error Bank</b> pada baris transaksi.',

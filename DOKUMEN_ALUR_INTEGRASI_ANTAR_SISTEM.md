@@ -121,31 +121,47 @@ Sistem menerapkan protokol pelaporan dengan **8 field wajib** yang terhubung lan
 ```
 [Pengguna di Desa]
        │
-       ▼ (Mengisi Drawer Lapor Kendala 8 Field)
+       ▼ (Mengisi Drawer Lapor Kendala: Form Data + Bukti Screenshot)
 • No WA Pelapor         • Kabupaten (Auto-fill)   • Nama Desa (Auto-fill)
 • No SPP                • No Kwitansi             • Kode CMS Siskeudes
-• Kode CMS Bank Desa    • Keterangan / Kendala
+• Kode CMS Bank Desa    • Keterangan / Kendala    • 📎 Lampiran Screenshot (File / Ctrl+V)
        │
-       ▼ (POST /api/v1/tickets/report)
-[Backend Siskeudes TNT]
-       ├─── 1. Sanitasi PII & Validasi Format No WA (+62 / 08)
+       ▼ (POST /api/v1/tickets/public-submit atau Webhook n8n)
+[Backend Siskeudes TNT & Orkestrator n8n]
+       ├─── 1. Sanitasi PII & Validasi Format No WA (+62 / 08) & File Screenshot
        ├─── 2. Generate Nomor Tiket Baku (TCK-YYYYMMDD-XXXX) & Token Magic Link
-       ├─── 3. Simpan ke Database Lokal (tabel chatbot_tickets)
+       ├─── 3. Simpan ke Database Lokal (tabel chatbot_tickets) & Simpan Berkas Gambar
        ├─── 4. Buat Tiket di Jira Service Management (Project SUP, SLA High)
-       ├─── 5. Broadcast Alert ke Slack Tim Engineering & Telegram Konsultan
-       └─── 6. Kirim PESAN WHATSAPP #1 (Tanda Terima Resmi + Magic Tracking Link)
+       │       └─── Otomatis Upload & Attach Screenshot ke Issue Jira (SUP-xxx)
+       ├─── 5. Broadcast Alert ke Slack Tim Engineering & Telegram Konsultan (+ Bukti Lampiran)
+       └─── 6. Routing Notifikasi WhatsApp Berdasarkan Kategori Laporan:
+               ├── [A. Kendala Transaksi Siskeudes TNT]:
+               │   └── Kirim PESAN WHATSAPP #1 (Tanda Terima + Magic Link) ke Pelapor Desa
+               └── [B. Kendala Login / Permohonan Reset Akun]:
+                   ├── Kirim LINK OTORISASI RESET ke WhatsApp ADMIN DPMD KABUPATEN
+                   └── Kirim Tanda Terima ke Pelapor Desa (Edukasi alur verifikasi DPMD)
 ```
 
-#### Struktur Pesan WhatsApp #1 (Tanda Terima & Link Pelacak):
+#### Struktur Pesan WhatsApp #1 (Kendala Transaksi TNT):
 > *Yth. Bapak/Ibu Operator Desa Kuta, Pemkab Badung,*  
 > *Laporan kendala transaksi Siskeudes TNT Anda telah kami terima:*  
 > *• No. Tiket: `#TCK-20261028-4821`*  
 > *• No. SPP: `00001/SPP/51.03.01.2001/2026`*  
+> *• Bukti Screenshot: Terlampir di Jira SUP*  
 > *• Status: SEDANG DIANTREKAN TIM TEKNIS*  
 >  
 > *Pantau perkembangan penanganan langsung melalui tautan pelacak mandiri:*  
 > *🔗 https://siskeudes.badungkab.go.id/api/v1/tickets/track/TCK-20261028-4821?token=a8f9c2...*  
 > *(Hemat kuota, pantau status tiket kapan saja tanpa menunggu balasan chat)*
+
+#### Struktur Pesan WhatsApp (Khusus Kendala Login ke Admin DPMD):
+> *🏛️ [PERMOHONAN RESET AKUN SISKEUDES - OTORISASI DPMD]*  
+> *Yth. Admin DPMD Kab. Badung,*  
+> *Terdapat permohonan pemulihan akses akun dari Desa Kuta (#TCK-20261028-4821) untuk akun: `kaur.keuangan@kuta.desa.id`.*  
+> *Tautan otorisasi & reset resmi DPMD:*  
+> *🔗 https://siskeudes.badungkab.go.id/api/v1/dpmd/auth-reset/TCK-20261028-4821?token=sec_a8...*  
+> *(Sesuai SOP keamanan, link reset HANYA dikirimkan ke Admin DPMD dan tidak diberikan ke pemohon desa).*
+
 
 ---
 
@@ -191,6 +207,22 @@ Alur ini beroperasi mandiri dan aman dipanggil ribuan kali tanpa membebani Whats
    - Menampilkan badge visual: `🟢 SUDAH CAIR / BERHASIL TRANSFER` atau `🟡 Disetujui Sekdes (Menunggu Pencairan di CMS Bank)`.
    - Menampilkan rincian alur dokumen: Siskeudes Online Final, Upload SPTJB/SPP2, Verifikasi Sekdes, dan Approval Kades.
    - Menyediakan tombol pintas `🚨 Ada Masalah pada SPP Ini? Laporkan` yang otomatis mengisi nomor SPP tersebut ke dalam form pelaporan kendala.
+
+---
+
+### 4.6. Alur 6: Arsitektur Hybrid / Multi-Tiered Request Handling
+Untuk menjamin kecepatan interaksi maksimal dan efisiensi konsumsi token AI, arsitektur membagi pemrosesan pesan pengguna ke dalam **3 Tingkat (Tier)** yang saling melengkapi:
+
+1. **Tier 1 - Edge SOP Cache (Frontend Local Template - 0 ms / Bebas Token)**:
+   - Diterapkan pada pertanyaan SOP baku dan klik tombol *Quick Chips* (contoh: panduan verifikasi berkas, solusi akun merah, dan koreksi ID billing).
+   - Ditangani seketika oleh `chat-widget.js` (ukuran file hanya ~71 KB dan ter-cache di browser).
+   - **Keuntungan**: Latensi 0 milidetik, tidak membebani server, dan menghemat biaya kuota token Google Gemini (Zero-Token).
+2. **Tier 2 - Direct Read-Only Database (Backend Laravel API - < 150 ms)**:
+   - Diterapkan saat pengguna memasukkan parameter pencarian spesifik seperti Nomor SPP (`00001/SPP/...`), Nomor Kwitansi, atau Kode CMS.
+   - Mengambil data transaksi riil langsung dari database PostgreSQL Siskeudes TNT secara aman tanpa melibatkan LLM.
+3. **Tier 3 - Intelligent Orchestration Gateway (n8n & Google Gemini LLM - 1,5–3 dtk)**:
+   - Diterapkan pada seluruh percakapan bebas (*free-text natural language*), konsultasi teknis yang kompleks, dan analisis sentimen/keluhan.
+   - n8n bertindak sebagai orkestrator yang menjalankan sanitasi Anti-PII, memanggil model Gemini 2.5 Flash, mengenali maksud pengguna (*intent recognition*), dan mengeksekusi penerbitan tiket Jira secara otomatis.
 
 ---
 

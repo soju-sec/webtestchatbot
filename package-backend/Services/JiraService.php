@@ -688,4 +688,85 @@ class JiraService
             'solved_notified_count' => $solvedNotifiedCount,
         ];
     }
+
+    /**
+     * Mengunggah lampiran berkas (screenshot error/kendala) ke Jira Issue yang sudah dibuat.
+     * Menggunakan Atlassian REST API: POST /rest/api/2/issue/{issueIdOrKey}/attachments
+     *
+     * @param string $issueKeyOrId Kunci issue (misal: 'SUP-142') atau Issue ID
+     * @param string $filePath Path file fisik di server lokal
+     * @param string|null $originalName Nama file asli (opsional)
+     * @return array Status pengunggahan
+     */
+    public static function attachFile(string $issueKeyOrId, string $filePath, ?string $originalName = null): array
+    {
+        if (!file_exists($filePath) || !is_readable($filePath)) {
+            Log::warning("[JiraService:attachFile] Berkas lampiran tidak ditemukan atau tidak dapat dibaca: {$filePath}");
+            return ['success' => false, 'message' => "Berkas tidak ditemukan: {$filePath}"];
+        }
+
+        $content  = file_get_contents($filePath);
+        $fileName = $originalName ?: basename($filePath);
+
+        return self::attachBinary($issueKeyOrId, $content, $fileName);
+    }
+
+    /**
+     * Mengunggah berkas biner/raw ke Jira Issue.
+     *
+     * @param string $issueKeyOrId Kunci issue (misal: 'SUP-142')
+     * @param string $binaryContent Konten biner berkas
+     * @param string $fileName Nama file
+     * @return array Status pengunggahan
+     */
+    public static function attachBinary(string $issueKeyOrId, string $binaryContent, string $fileName = 'screenshot.png'): array
+    {
+        if (!self::isConfigured()) {
+            return ['success' => false, 'message' => 'Kredensial Jira belum dikonfigurasi'];
+        }
+
+        $baseUrl = self::getBaseUrl();
+        $email   = self::getUserEmail();
+        $token   = self::getApiToken();
+        $auth    = base64_encode("{$email}:{$token}");
+
+        try {
+            $url = "{$baseUrl}/rest/api/2/issue/{$issueKeyOrId}/attachments";
+
+            $response = Http::withHeaders([
+                'Authorization'      => "Basic {$auth}",
+                'X-Atlassian-Token'  => 'no-check',
+                'Accept'             => 'application/json',
+            ])->timeout(30)->attach('file', $binaryContent, $fileName)->post($url);
+
+            if ($response->successful()) {
+                $resData = $response->json();
+                $firstAttachment = is_array($resData) && !empty($resData[0]) ? $resData[0] : null;
+
+                Log::info("[JiraService:attachFile] Berhasil mengunggah lampiran '{$fileName}' ke Jira issue {$issueKeyOrId}");
+
+                return [
+                    'success'         => true,
+                    'message'         => "Screenshot berhasil dilampirkan ke Jira {$issueKeyOrId}",
+                    'attachment_id'   => $firstAttachment['id'] ?? null,
+                    'attachment_url'  => $firstAttachment['content'] ?? null,
+                    'file_name'       => $fileName,
+                ];
+            }
+
+            Log::warning("[JiraService:attachFile] Gagal mengunggah attachment ke Jira {$issueKeyOrId} (HTTP {$response->status()}): " . $response->body());
+            return [
+                'success' => false,
+                'status'  => $response->status(),
+                'message' => 'Gagal mengunggah attachment ke Jira: ' . $response->body(),
+            ];
+        } catch (\Throwable $e) {
+            Log::error("[JiraService:attachFile] Exception saat upload attachment: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
 }
+
