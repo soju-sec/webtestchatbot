@@ -347,11 +347,22 @@ class TicketReportController extends Controller
         $namaDesa      = trim((string) ($request->query('nama_desa') ?? $request->input('nama_desa') ?? $request->query('desa') ?? ''));
         $tahunAnggaran = trim((string) ($request->query('tahun') ?? $request->query('tahun_anggaran') ?? $request->input('tahun_anggaran') ?? date('Y')));
 
-        if (empty($noSpp) && empty($kodeCms) && empty($noKwitansi)) {
+        // Kata kunci pencarian universal
+        $keyword = trim((string) ($request->query('keyword') ?? $request->query('search') ?? ''));
+        if (empty($keyword)) {
+            $keyword = $kodeCms ?: ($noSpp ?: $noKwitansi);
+        }
+
+        if (empty($keyword)) {
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Mohon sertakan Nomor SPP, Kode CMS, atau Nomor Kwitansi untuk pengecekan status pencairan.',
+                'message' => 'Mohon sertakan Nomor SPP, Kode CMS/ID Billing, atau Nomor Kwitansi untuk pengecekan status pencairan.',
             ], 422);
+        }
+
+        // Jika keyword berawalan CMS, otomatis anggap sebagai kodeCms
+        if (preg_match('/^CMS/i', $keyword)) {
+            $kodeCms = $keyword;
         }
 
         $connection = $this->getConnection();
@@ -361,24 +372,30 @@ class TicketReportController extends Controller
         $relatedTicket = null;
         try {
             $query = DB::connection($connection)->table($table);
-            if (!empty($noSpp)) {
-                $query->where('no_spp', 'like', "%{$noSpp}%");
-            } elseif (!empty($kodeCms)) {
-                $query->where(function ($q) use ($kodeCms) {
-                    $q->where('kode_cms_siskeudes', 'like', "%{$kodeCms}%")
-                      ->orWhere('kode_cms_bank', 'like', "%{$kodeCms}%");
-                });
-            } elseif (!empty($noKwitansi)) {
-                $query->where('no_kwitansi', 'like', "%{$noKwitansi}%");
-            }
+            $query->where(function ($q) use ($keyword) {
+                $q->where('no_spp', 'like', "%{$keyword}%")
+                  ->orWhere('kode_cms_siskeudes', 'like', "%{$keyword}%")
+                  ->orWhere('kode_cms_bank', 'like', "%{$keyword}%")
+                  ->orWhere('no_kwitansi', 'like', "%{$keyword}%");
+            });
             $relatedTicket = $query->latest('id')->first();
         } catch (\Throwable $e) {
             Log::warning('[TicketReportController] Exception cek tiket terkait SPP: ' . $e->getMessage());
         }
 
-        // 2. Hubungkan ke data transaksi Siskeudes / Database Host jika tabel tbspp tersedia
+        // 2. Hubungkan ke data transaksi Siskeudes / Database Host (tbspp & tbkwitansi)
         $realSpp = null;
+        $realKw  = null;
         try {
+            $selectColsSpp = ['tbspp.*'];
+            if (Schema::connection($connection)->hasTable('tbmdesa')) {
+                $selectColsSpp[] = 'tbmdesa.nama_desa as m_nama_desa';
+            }
+            if (Schema::connection($connection)->hasTable('tbmpemda')) {
+                $selectColsSpp[] = 'tbmpemda.nama_pemda as m_nama_pemda';
+            }
+
+            // A. Cari di tabel tbspp
             if (Schema::connection($connection)->hasTable('tbspp')) {
                 $qSpp = DB::connection($connection)->table('tbspp');
                 if (Schema::connection($connection)->hasTable('tbmdesa')) {
@@ -388,46 +405,90 @@ class TicketReportController extends Controller
                     $qSpp->leftJoin('tbmpemda', 'tbmdesa.pemdaid', '=', 'tbmpemda.pemdaid');
                 }
 
-                $qSpp->where(function ($q) use ($noSpp, $kodeCms, $noKwitansi) {
-                    if (!empty($noSpp)) {
-                        $q->where('tbspp.no_spp', 'like', "%{$noSpp}%");
-                    } elseif (!empty($kodeCms)) {
-                        $q->where('tbspp.kd_billing', 'like', "%{$kodeCms}%");
-                    } elseif (!empty($noKwitansi)) {
-                        $q->where('tbspp.no_spp', 'like', "%{$noKwitansi}%");
-                    }
+                $qSpp->where(function ($q) use ($keyword) {
+                    $q->where('tbspp.no_spp', 'like', "%{$keyword}%")
+                      ->orWhere('tbspp.kd_billing', 'like', "%{$keyword}%")
+                      ->orWhere('tbspp.no_ref_bank', 'like', "%{$keyword}%");
                 });
 
-                $selectCols = ['tbspp.*'];
+                $realSpp = $qSpp->select($selectColsSpp)->first();
+            }
+
+            // B. Cari atau lengkapi dari tabel tbkwitansi
+            if (Schema::connection($connection)->hasTable('tbkwitansi')) {
+                $qKw = DB::connection($connection)->table('tbkwitansi');
                 if (Schema::connection($connection)->hasTable('tbmdesa')) {
-                    $selectCols[] = 'tbmdesa.nama_desa as m_nama_desa';
+                    $qKw->leftJoin('tbmdesa', 'tbkwitansi.desaid', '=', 'tbmdesa.desaid');
+                }
+                if (Schema::connection($connection)->hasTable('tbmpemda') && Schema::connection($connection)->hasTable('tbmdesa')) {
+                    $qKw->leftJoin('tbmpemda', 'tbmdesa.pemdaid', '=', 'tbmpemda.pemdaid');
+                }
+
+                $selectColsKw = ['tbkwitansi.*'];
+                if (Schema::connection($connection)->hasTable('tbmdesa')) {
+                    $selectColsKw[] = 'tbmdesa.nama_desa as m_nama_desa';
                 }
                 if (Schema::connection($connection)->hasTable('tbmpemda')) {
-                    $selectCols[] = 'tbmpemda.nama_pemda as m_nama_pemda';
+                    $selectColsKw[] = 'tbmpemda.nama_pemda as m_nama_pemda';
                 }
 
-                $realSpp = $qSpp->select($selectCols)->first();
+                if ($realSpp) {
+                    $realKw = (clone $qKw)->where('tbkwitansi.sppid', $realSpp->sppid)->select($selectColsKw)->first();
+                } else {
+                    $realKw = (clone $qKw)->where(function ($q) use ($keyword) {
+                        $q->where('tbkwitansi.kd_billing', 'like', "%{$keyword}%")
+                          ->orWhere('tbkwitansi.no_bukti', 'like', "%{$keyword}%")
+                          ->orWhere('tbkwitansi.no_ref_bank', 'like', "%{$keyword}%");
+                    })->select($selectColsKw)->first();
+
+                    if ($realKw && !empty($realKw->sppid) && Schema::connection($connection)->hasTable('tbspp')) {
+                        $qSppRel = DB::connection($connection)->table('tbspp');
+                        if (Schema::connection($connection)->hasTable('tbmdesa')) {
+                            $qSppRel->leftJoin('tbmdesa', 'tbspp.desaid', '=', 'tbmdesa.desaid');
+                        }
+                        if (Schema::connection($connection)->hasTable('tbmpemda') && Schema::connection($connection)->hasTable('tbmdesa')) {
+                            $qSppRel->leftJoin('tbmpemda', 'tbmdesa.pemdaid', '=', 'tbmpemda.pemdaid');
+                        }
+                        $realSpp = $qSppRel->where('tbspp.sppid', $realKw->sppid)->select($selectColsSpp)->first();
+                    }
+                }
             }
         } catch (\Throwable $e) {
-            Log::info('[TicketReportController] Lookup tbspp note: ' . $e->getMessage());
+            Log::info('[TicketReportController] Lookup tbspp/tbkwitansi note: ' . $e->getMessage());
         }
 
-        if ($realSpp) {
-            $noSpp = $realSpp->no_spp;
-            $kabupaten = $realSpp->m_nama_pemda ?? ($kabupaten ?: 'Pemerintah Kabupaten Badung');
-            $namaDesa = $realSpp->m_nama_desa ?? ($namaDesa ?: 'Desa Kuta');
-            $tahunAnggaran = $realSpp->tahun ?? $tahunAnggaran;
+        if ($realSpp || $realKw) {
+            $noSpp = $realSpp ? $realSpp->no_spp : ($realKw->no_bukti ?? "SPP-{$keyword}");
+            $kabupaten = ($realSpp->m_nama_pemda ?? $realKw->m_nama_pemda ?? null) ?: ($kabupaten ?: 'Pemerintah Kabupaten Badung');
+            $namaDesa = ($realSpp->m_nama_desa ?? $realKw->m_nama_desa ?? null) ?: ($namaDesa ?: 'Desa Tibubeneng');
+            $tahunAnggaran = ($realSpp->tahun ?? $realKw->tahun ?? null) ?: $tahunAnggaran;
 
-            $nominalBruto = (int) ($realSpp->nilai_belanja ?? 0);
-            $potonganPajak = (int) ($realSpp->nilai_potongan ?? 0);
-            $nominalNetto = (int) ($realSpp->nilai_terima ?? 0);
+            $nominalBruto = (int) ($realKw->nilai_belanja ?? $realSpp->nilai_belanja ?? 0);
+            $potonganPajak = (int) ($realKw->nilai_potongan ?? $realSpp->nilai_potongan ?? 0);
+            $nominalNetto = (int) ($realKw->nilai_terima ?? $realSpp->nilai_terima ?? 0);
 
-            $isCair = ($realSpp->status_pembayaran == 1 && $realSpp->status_pencairan == 1);
-            $isVerif = ($realSpp->status_verifikasi == 1);
+            $idBilling = $realKw->kd_billing ?? $realSpp->kd_billing ?? $keyword;
+            $noKwitansiVal = $realKw->no_bukti ?? ($noKwitansi ?: ("KW-" . ($realSpp->sppid ?? 1) . "/{$tahunAnggaran}"));
+
+            // Cek kondisi status
+            $isCair = ($realSpp && $realSpp->status_pembayaran == 1 && $realSpp->status_pencairan == 1);
+            $isVerif = ($realSpp && $realSpp->status_verifikasi == 1) || ($realKw && $realKw->status_verifikasi == 1);
+
+            // Cek apakah transaksi gagal di CMS Bank (Masuk Menu Retry Pokok)
+            // Di Siskeudes TNT: status_verifikasi = 1 (diterima), tapi status_pembayaran == 0 (gagal debet CMS)
+            $isRetryPokok = false;
+            $kwPaymentStatus = $realKw ? $realKw->status_pembayaran : ($realSpp ? $realSpp->status_pembayaran : null);
+            if ($isVerif && ($kwPaymentStatus === 0 || $kwPaymentStatus === '0' || $kwPaymentStatus === null || $kwPaymentStatus > 3)) {
+                $isRetryPokok = true;
+            }
 
             if ($relatedTicket && $relatedTicket->status === 'open') {
                 $statusPembayaran = 'KENDALA_DILAPORKAN';
                 $statusLabel = 'Kendala Sedang Ditangani Tim Teknis';
+                $badgeColor = 'danger';
+            } elseif ($isRetryPokok) {
+                $statusPembayaran = 'GAGAL_CMS_BANK';
+                $statusLabel = 'Gagal Debet di CMS Bank (Tersedia di Menu Retry Pokok)';
                 $badgeColor = 'danger';
             } elseif ($isCair) {
                 $statusPembayaran = 'BERHASIL_CAIR';
@@ -443,19 +504,28 @@ class TicketReportController extends Controller
                 $badgeColor = 'warning';
             }
 
+            $namaPenerima = $realKw->nm_penerima ?? ($realSpp->nm_pemilik ?? 'Penerima APBDes');
+            $bankPenerima = $realKw->nm_bank_penerima ?? ($realSpp->nm_bank_desa ?? 'BPD Bali');
+            $rekPenerima = $realKw->rek_bank_penerima ?? ($realSpp->rek_bank_desa ?? '-');
+            $uraianBelanja = $realKw->uraian_belanja ?? ($realSpp->uraian ?? 'Belanja APBDes');
+            if ($realKw && !empty($realKw->kode_belanja)) {
+                $uraianBelanja = "{$realKw->kode_belanja} {$uraianBelanja}";
+            }
+
             $sppData = [
-                'no_spp'               => $realSpp->no_spp,
-                'no_kwitansi'          => $noKwitansi ?: "KW-" . $realSpp->sppid . "/{$tahunAnggaran}",
-                'kode_cms_siskeudes'   => $realSpp->kd_billing ?: "CMS-{$tahunAnggaran}-" . sprintf('%05d', $realSpp->sppid),
-                'kode_cms_bank'        => "BNK-" . sprintf('%06d', $realSpp->sppid + 100000),
-                'tanggal_transaksi'    => !empty($realSpp->tgl_verifikasi) ? date('d-m-Y H:i:s', strtotime($realSpp->tgl_verifikasi)) : date('d-m-Y H:i:s', strtotime($realSpp->tgl_spp ?? 'now')),
+                'no_spp'               => $noSpp,
+                'no_kwitansi'          => $noKwitansiVal,
+                'kode_cms_siskeudes'   => $idBilling,
+                'kode_cms_bank'        => "BNK-" . sprintf('%06d', ($realSpp->sppid ?? ($realKw->kwitansiid ?? 1)) + 100000),
+                'tanggal_transaksi'    => !empty($realKw->tgl_bukti) ? date('d-m-Y', strtotime($realKw->tgl_bukti)) : (!empty($realSpp->tgl_verifikasi) ? date('d-m-Y H:i:s', strtotime($realSpp->tgl_verifikasi)) : date('d-m-Y H:i:s')),
                 'status_pembayaran'    => $statusPembayaran,
                 'status_label'         => $statusLabel,
                 'badge_color'          => $badgeColor,
-                'rekening_tujuan'      => $realSpp->rek_bank_desa ?: '101.02.0001',
-                'nama_penerima'        => $realSpp->nm_pemilik ?: 'Rekening Kas Desa Kuta',
-                'bank_tujuan'          => $realSpp->nm_bank_desa ?: 'BPD Bali / Mitra Siskeudes TNT',
-                'uraian_belanja'       => $realSpp->uraian ?: 'Belanja Operasional Kantor dan APBDes',
+                'is_retry_pokok'       => $isRetryPokok,
+                'rekening_tujuan'      => $rekPenerima,
+                'nama_penerima'        => $namaPenerima,
+                'bank_tujuan'          => $bankPenerima,
+                'uraian_belanja'       => $uraianBelanja,
                 'nominal_bruto'        => $nominalBruto,
                 'nominal_bruto_format' => 'Rp ' . number_format($nominalBruto, 0, ',', '.'),
                 'potongan_pajak'       => $potonganPajak,
@@ -463,22 +533,25 @@ class TicketReportController extends Controller
                 'nominal_netto'        => $nominalNetto,
                 'nominal_netto_format' => 'Rp ' . number_format($nominalNetto, 0, ',', '.'),
                 'status_pajak'         => 'ID Billing Terbayar Otomatis melalui CMS Bank Desa',
-                'id_billing'           => $realSpp->kd_billing ?: 'CMS-2026',
-                'no_referensi_bank'    => $realSpp->no_ref_bank ?: ('REF-BPD-' . date('Ymd', strtotime($realSpp->tgl_spp ?? 'now'))),
+                'id_billing'           => $idBilling,
+                'no_referensi_bank'    => ($realKw->no_ref_bank ?? $realSpp->no_ref_bank) ?: ('REF-BPD-' . date('Ymd')),
+                'solusi_tindakan'      => $isRetryPokok 
+                    ? 'Transaksi ini mengalami kegagalan debet di CMS Bank dan terdaftar di menu Retry Pokok. Bapak/Ibu dapat melakukan Pengajuan Retry melalui tab Maker pada tabel Retry Pokok, lalu menunggu approval Kepala Desa/Sekdes agar CMS Bank memproses ulang pencairan.'
+                    : null,
                 'alur_verifikasi'      => [
                     'siskeudes_online' => 'Final (Disetujui)',
-                    'upload_sptjb'     => !empty($realSpp->filesuratrekomcamat) || $isVerif ? 'Lengkap' : 'Menunggu Unggah',
-                    'upload_spp2'      => $isVerif ? 'Lengkap' : 'Menunggu Unggah',
+                    'upload_sptjb'     => 'Lengkap',
+                    'upload_spp2'      => 'Lengkap',
                     'verifikasi_sekdes'=> $isVerif ? 'Selesai (Disetujui)' : 'Belum Diverifikasi',
-                    'approval_kades'   => $isCair ? 'Selesai (Cair)' : ($isVerif ? 'Menunggu Eksekusi CMS Bank' : 'Menunggu Verifikasi'),
+                    'approval_kades'   => $isCair ? 'Selesai (Cair)' : ($isRetryPokok ? 'Gagal di CMS Bank (Perlu Retry)' : 'Menunggu Eksekusi CMS Bank'),
                 ]
             ];
         } else {
-            // Data tidak ditemukan di tabel tbspp
-            $searchKey = !empty($noSpp) ? $noSpp : (!empty($kodeCms) ? $kodeCms : $noKwitansi);
+            // Data tidak ditemukan di tabel tbspp maupun tbkwitansi
+            $searchKey = $keyword;
             return response()->json([
                 'status'    => 'not_found',
-                'message'   => "Data transaksi untuk [{$searchKey}] tidak ditemukan dalam sistem Siskeudes TNT" . ($namaDesa ? " ({$namaDesa})" : '') . ". Mohon periksa kembali nomor SPP atau pastikan SPP telah difinalkan di Siskeudes Online.",
+                'message'   => "Data transaksi untuk [{$searchKey}] tidak ditemukan dalam sistem Siskeudes TNT" . ($namaDesa ? " ({$namaDesa})" : '') . ". Mohon periksa kembali nomor SPP atau ID Billing.",
                 'query'     => [
                     'no_spp'         => $noSpp ?: null,
                     'kode_cms'       => $kodeCms ?: null,

@@ -977,19 +977,23 @@
     const mSpp = text.match(/\b(\d{3,5}\/SPP\/[0-9A-Za-z./-]+)\b/i);
     if (mSpp) return mSpp[1];
 
-    // B. Format Kode CMS dengan angka: CMS-2026-00123 atau CMS2026001001
+    // B. Format Kode CMS / ID Billing dengan angka: CMS-2026-00123 atau CMS2026003001
     const mCms = text.match(/\b(CMS[-_0-9A-Za-z]*\d+[-_0-9A-Za-z]*)\b/i);
     if (mCms && mCms[1].length >= 6) return mCms[1];
 
-    // C. Format Kwitansi dengan angka: KW-1/2026 atau KW-001/2026
+    // C. Format Nomor Bukti Kwitansi: 0001/BKT/...
+    const mBkt = text.match(/\b(\d{3,5}\/BKT\/[0-9A-Za-z./-]+)\b/i);
+    if (mBkt) return mBkt[1];
+
+    // D. Format Kwitansi dengan angka: KW-1/2026 atau KW-001/2026
     const mKw = text.match(/\b(KW[-_./0-9A-Za-z]*\d+[-_./0-9A-Za-z]*)\b/i);
     if (mKw && mKw[1].length >= 4) return mKw[1];
 
-    // D. Format eksplisit dengan keyword pencarian: cek spp 00001/...
-    const mExplicit = text.match(/(?:cek|status|pencairan)\s*(?:status)?\s*(?:pencairan)?\s*(?:spp|cms|kwitansi)\s*[:=]?\s*([0-9A-Za-z/.-]*\d[0-9A-Za-z/.-]*)/i);
+    // E. Format eksplisit dengan keyword pencarian: cek spp 00001/... atau cek detail id billing CMS...
+    const mExplicit = text.match(/(?:cek|status|pencairan|detail|info)\s*(?:status)?\s*(?:pencairan)?\s*(?:spp|cms|kwitansi|id\s*billing|billing)\s*[:=]?\s*([0-9A-Za-z/.-]*\d[0-9A-Za-z/.-]*)/i);
     if (mExplicit && mExplicit[1].length >= 4) {
       const cand = mExplicit[1];
-      const stopwords = ['pencairan', 'status', 'online', 'manual', 'tnt', 'desa', 'bank', 'kwitansi'];
+      const stopwords = ['pencairan', 'status', 'online', 'manual', 'tnt', 'desa', 'bank', 'kwitansi', 'billing', 'detail'];
       if (!stopwords.includes(cand.toLowerCase())) {
         return cand;
       }
@@ -1138,7 +1142,7 @@
 
     const ctx = detectSiskeudesContext();
     const backendUrl = BACKEND_BASE_URL.replace(/\/$/, '');
-    const url = `${backendUrl}/api/v1/siskeudes/spp/status?no_spp=${encodeURIComponent(sppKey)}&kabupaten=${encodeURIComponent(ctx.kabupaten)}&nama_desa=${encodeURIComponent(ctx.desa)}&tahun=${encodeURIComponent(ctx.tahun)}`;
+    const url = `${backendUrl}/api/v1/siskeudes/spp/status?keyword=${encodeURIComponent(sppKey)}&no_spp=${encodeURIComponent(sppKey)}&kode_cms=${encodeURIComponent(sppKey)}&kabupaten=${encodeURIComponent(ctx.kabupaten)}&nama_desa=${encodeURIComponent(ctx.desa)}&tahun=${encodeURIComponent(ctx.tahun)}`;
 
     try {
       const resp = await fetch(url);
@@ -1150,39 +1154,47 @@
       if (data && data.status === 'success' && data.spp_data) {
         const s = data.spp_data;
         const isCair = s.status_pembayaran === 'BERHASIL_CAIR';
-        const badgeBg = s.badge_color === 'success' ? '#10b981' : (s.badge_color === 'danger' ? '#ef4444' : '#f59e0b');
-        const badgeText = s.status_label || (isCair ? '🟢 SUDAH CAIR / BERHASIL TRANSFER' : '🟡 MENUNGGU VERIFIKASI / PROSES');
+        const isGagalCms = s.status_pembayaran === 'GAGAL_CMS_BANK' || s.is_retry_pokok;
+        const badgeBg = isCair ? '#10b981' : (isGagalCms ? '#ef4444' : '#f59e0b');
+        const borderColor = isCair ? '#a7f3d0' : (isGagalCms ? '#fca5a5' : '#fed7aa');
+        const badgeText = s.status_label || (isCair ? '🟢 SUDAH CAIR / BERHASIL TRANSFER' : (isGagalCms ? '🔴 GAGAL DEBET CMS (RETRY POKOK)' : '🟡 MENUNGGU VERIFIKASI / PROSES'));
 
         let html = `
           <div style="font-size: 13px; line-height: 1.45;">
-            <b>Hasil Pengecekan Status Pencairan SPP</b><br>
-            <span style="font-size: 11px; color: #64748b;">Sumber: API Siskeudes TNT &bull; CMS Bank Desa</span>
-            <div style="background: #ffffff; border: 1.5px solid ${isCair ? '#a7f3d0' : '#fed7aa'}; border-radius: 8px; padding: 10px; margin-top: 8px;">
+            <b>Hasil Pengecekan Transaksi & SPP Siskeudes</b><br>
+            <span style="font-size: 11px; color: #64748b;">Sumber: API Siskeudes TNT &bull; Integrasi CMS Bank Desa</span>
+            <div style="background: #ffffff; border: 1.5px solid ${borderColor}; border-radius: 8px; padding: 10px; margin-top: 8px;">
               <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 6px;">
                 <span style="font-weight: 700; color: #1e3a8a; font-family: monospace;">${s.no_spp}</span>
                 <span style="background: ${badgeBg}; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">${s.status_pembayaran}</span>
               </div>
               <div style="font-size: 11.5px; color: #334155; line-height: 1.5;">
                 • <b>Status:</b> ${badgeText}<br>
-                • <b>No. Kwitansi:</b> <code>${s.no_kwitansi}</code><br>
-                • <b>Kode CMS:</b> Siskeudes: <code>${s.kode_cms_siskeudes}</code> | Bank: <code>${s.kode_cms_bank}</code><br>
-                • <b>Waktu Transaksi:</b> ${s.tanggal_transaksi} WIB<br>
-                • <b>No. Referensi Bank:</b> <code>${s.no_referensi_bank}</code><br>
-                • <b>Penerima:</b> ${s.nama_penerima} (${s.rekening_tujuan})<br>
+                • <b>No. Bukti Kwitansi:</b> <code>${s.no_kwitansi}</code><br>
+                • <b>ID Billing CMS:</b> <code>${s.id_billing || s.kode_cms_siskeudes}</code><br>
+                • <b>Tanggal Transaksi:</b> ${s.tanggal_transaksi}<br>
+                • <b>Penerima:</b> ${s.nama_penerima} (Rek: <code>${s.rekening_tujuan}</code> - ${s.bank_tujuan})<br>
+                • <b>Kegiatan/Belanja:</b> ${s.uraian_belanja}<br>
                 <div style="background: #f8fafc; padding: 6px 8px; border-radius: 6px; margin: 6px 0; border: 1px solid #e2e8f0;">
                   • <b>Nominal Bruto:</b> ${s.nominal_bruto_format}<br>
                   • <b>Potongan Pajak:</b> ${s.potongan_pajak_format} (${s.status_pajak})<br>
                   • <b>Diterima Bersih (Netto):</b> <b style="color: #047857;">${s.nominal_netto_format}</b>
                 </div>
-                • <b>Alur Verifikasi Dokumen:</b><br>
-                &nbsp;&nbsp;✓ Siskeudes Online: ${s.alur_verifikasi.siskeudes_online}<br>
-                &nbsp;&nbsp;✓ Upload SPTJB & SPP2: ${s.alur_verifikasi.upload_sptjb}<br>
-                &nbsp;&nbsp;✓ Verifikasi Sekdes: ${s.alur_verifikasi.verifikasi_sekdes}<br>
-                &nbsp;&nbsp;✓ Approval Kades: ${s.alur_verifikasi.approval_kades}
+                ${s.solusi_tindakan ? `
+                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 7px 9px; margin-top: 6px; font-size: 11px; color: #991b1b; line-height: 1.45;">
+                  <b>🛠️ Panduan Solusi & Tindak Lanjut:</b><br>${s.solusi_tindakan}
+                </div>` : ''}
+                <div style="margin-top: 6px;">
+                  • <b>Alur Verifikasi Dokumen:</b><br>
+                  &nbsp;&nbsp;✓ Siskeudes Online: ${s.alur_verifikasi.siskeudes_online}<br>
+                  &nbsp;&nbsp;✓ Upload Dokumen: ${s.alur_verifikasi.upload_sptjb}<br>
+                  &nbsp;&nbsp;✓ Verifikasi Sekdes: ${s.alur_verifikasi.verifikasi_sekdes}<br>
+                  &nbsp;&nbsp;✓ Eksekusi CMS Bank: ${s.alur_verifikasi.approval_kades}
+                </div>
               </div>
             </div>
             <div style="margin-top: 8px; display: flex; gap: 6px;">
-              <button type="button" class="ai-chip-btn ai-chip-issue" onclick="window.__prefillSiskeudesIssue('${s.no_spp}', '${s.no_kwitansi}', '${s.kode_cms_siskeudes}', '${s.kode_cms_bank}')">🚨 Ada Masalah pada SPP Ini? Laporkan</button>
+              <button type="button" class="ai-chip-btn ai-chip-issue" onclick="window.__prefillSiskeudesIssue('${s.no_spp}', '${s.no_kwitansi}', '${s.kode_cms_siskeudes}', '${s.kode_cms_bank}')">🚨 Ada Kendala Rekening/Transfer? Laporkan</button>
             </div>
           </div>
         `;
