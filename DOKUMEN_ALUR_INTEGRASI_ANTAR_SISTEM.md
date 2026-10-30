@@ -113,6 +113,15 @@ Alur ini menjamin bahwa seluruh SOP penanganan masalah yang diatur oleh konsulta
 4. **Penyuntikan Instruksi Gemini**: Node `Build Gemini Prompt` merangkai data template kasus menjadi bagian dari *System Instruction* Gemini AI.
 5. **Hasil Jawaban Terstandar**: Jika pesan pengguna cocok dengan kata kunci kasus, Gemini AI wajib menyusun balasan berbasis langkah resmi SOP yang telah ditetapkan konsultan.
 
+> 📷 **[EVIDENCE PLACEHOLDER #E01: SINKRONISASI AI MANIFEST CMS KONSULTAN]**
+> - **Kategori Bukti:** Tangkapan Layar Browser Web / Postman Response
+> - **Deskripsi:** Respon JSON dari endpoint `GET /api/v1/ai/manifest` yang membuktikan daftar action kapabilitas API (`get_store_metrics`, `get_monthly_revenue`, `check_spp_cair`) dan 10 template SOP kasus terpublikasi berhasil ditarik oleh n8n.
+> - **Petunjuk:** Tempel screenshot respon manifest di bawah ini:
+>
+> ```markdown
+> ![Evidence E01 - AI Manifest Response](evidence/e01_ai_manifest_sync.png)
+> ```
+
 ---
 
 ### 4.2. Alur 2: Pelaporan Kendala Siskeudes & WhatsApp Zero-Spam (Skenario B)
@@ -162,6 +171,47 @@ Sistem menerapkan protokol pelaporan dengan **8 field wajib** yang terhubung lan
 > *🔗 https://siskeudes.badungkab.go.id/api/v1/dpmd/auth-reset/TCK-20261028-4821?token=sec_a8...*  
 > *(Sesuai SOP keamanan, link reset HANYA dikirimkan ke Admin DPMD dan tidak diberikan ke pemohon desa).*
 
+> 📷 **[EVIDENCE PLACEHOLDER #E02: FORMULIR DRAWER PELAPORAN + LAMPIRAN SCREENSHOT]**
+> - **Kategori Bukti:** Tangkapan Layar UI Chat Widget Siskeudes TNT
+> - **Deskripsi:** Tampilan formulir drawer laporan yang memuat isian 8 parameter transaksi, preview thumbnail screenshot bukti kendala, tombol *📎 Unggah Screenshot*, dan deteksi *Ctrl+V* clipboard.
+> - **Petunjuk:** Tempel screenshot drawer pelaporan di bawah ini:
+>
+> ```markdown
+> ![Evidence E02 - Issue Drawer With Screenshot](evidence/e02_widget_issue_drawer_screenshot.png)
+> ```
+
+---
+
+> 📷 **[EVIDENCE PLACEHOLDER #E03: LAMPIRAN SCREENSHOT TERUNGGAH DI JIRA SERVICE MANAGEMENT (SUP-16)]**
+> - **Kategori Bukti:** Tangkapan Layar Web Atlassian Jira Cloud (`https://imtekservice.atlassian.net`)
+> - **Deskripsi:** Detail issue Jira `SUP-16` yang memperlihatkan attachment file gambar bukti kendala (`ss_TCK-20261030-FD05_6ae41b624b0e8.png` / ID `10000`) terlampir otomatis melalui Atlassian REST API tanpa kebocoran data ke LLM.
+> - **Petunjuk:** Tempel screenshot issue Jira SUP-16 di bawah ini:
+>
+> ```markdown
+> ![Evidence E03 - Jira Issue Attachment](evidence/e03_jira_ticket_screenshot_attached.png)
+> ```
+
+---
+
+> 📷 **[EVIDENCE PLACEHOLDER #E04: NOTIFIKASI WHATSAPP OTORISASI RESET KE ADMIN DPMD]**
+> - **Kategori Bukti:** Tangkapan Layar Aplikasi WhatsApp (Mobile / Desktop)
+> - **Deskripsi:** Pesan resmi verifikasi reset password yang dikirimkan ke nomor WhatsApp Admin DPMD Kabupaten setempat (`6289664744020`) lengkap dengan tautan otorisasi, serta struk receipt proteksi akun pada WhatsApp pelapor desa.
+> - **Petunjuk:** Tempel screenshot pesan WhatsApp DPMD di bawah ini:
+>
+> ```markdown
+> ![Evidence E04 - WhatsApp DPMD Auth Alert](evidence/e04_whatsapp_dpmd_auth_alert.png)
+> ```
+
+---
+
+> 📷 **[EVIDENCE PLACEHOLDER #E05: PORTAL WEB OTORISASI ADMIN DPMD KABUPATEN]**
+> - **Kategori Bukti:** Tangkapan Layar Web Browser (`/api/v1/dpmd/auth-reset/...`)
+> - **Deskripsi:** Tampilan portal verifikasi otorisasi Admin DPMD yang menampilkan rincian tiket pelapor desa serta tombol persetujuan *'Setujui & Buka Reset Akun'* dan *'Tolak Permohonan'*.
+> - **Petunjuk:** Tempel screenshot portal DPMD di bawah ini:
+>
+> ```markdown
+> ![Evidence E05 - Web Portal DPMD Auth](evidence/e05_dpmd_auth_portal_ui.png)
+> ```
 
 ---
 
@@ -191,6 +241,15 @@ Ketika teknisi di Jira menyelesaikan kendala:
    > *Rincian lengkap: https://siskeudes.badungkab.go.id/api/v1/tickets/track/...*
    - Sistem mencatat timestamp pada `resolved_notified_at` agar notifikasi tidak terkirim ganda.
 
+> 📷 **[EVIDENCE PLACEHOLDER #E06: STATUS JIRA RESOLVED & NOTIFIKASI WHATSAPP SOLUSI TEKNISI]**
+> - **Kategori Bukti:** Tangkapan Layar WhatsApp & Webhook Log Jira
+> - **Deskripsi:** Bukti penerimaan Webhook status `Resolved` dari Jira dan pengiriman pesan WhatsApp Pesan #2 yang memuat instruksi penyelesaian teknisi ke nomor desa.
+> - **Petunjuk:** Tempel screenshot pesan solusi WhatsApp di bawah ini:
+>
+> ```markdown
+> ![Evidence E06 - Jira Webhook to WhatsApp Solved](evidence/e06_jira_resolved_whatsapp_alert.png)
+> ```
+
 ---
 
 ### 4.5. Alur 5: Pengecekan Status Pencairan SPP (Read-Only API)
@@ -208,6 +267,15 @@ Alur ini beroperasi mandiri dan aman dipanggil ribuan kali tanpa membebani Whats
    - Menampilkan rincian alur dokumen: Siskeudes Online Final, Upload SPTJB/SPP2, Verifikasi Sekdes, dan Approval Kades.
    - Menyediakan tombol pintas `🚨 Ada Masalah pada SPP Ini? Laporkan` yang otomatis mengisi nomor SPP tersebut ke dalam form pelaporan kendala.
 
+> 📷 **[EVIDENCE PLACEHOLDER #E07: KARTU HASIL PENGECEKAN PENCAIRAN SPP SISKEUDES-LINK (READ-ONLY)]**
+> - **Kategori Bukti:** Tangkapan Layar UI Chat Widget Siskeudes TNT
+> - **Deskripsi:** Tampilan kartu hasil pengecekan SPP berstatus `🟢 SUDAH CAIR` Rp 22.250.000 netto dengan rincian alur verifikasi dokumen dan tombol pintas lapor kendala.
+> - **Petunjuk:** Tempel screenshot kartu hasil SPP di bawah ini:
+>
+> ```markdown
+> ![Evidence E07 - SPP Disbursement Status Card](evidence/e07_spp_status_card_widget.png)
+> ```
+
 ---
 
 ### 4.6. Alur 6: Arsitektur Hybrid / Multi-Tiered Request Handling
@@ -223,6 +291,15 @@ Untuk menjamin kecepatan interaksi maksimal dan efisiensi konsumsi token AI, ars
 3. **Tier 3 - Intelligent Orchestration Gateway (n8n & Google Gemini LLM - 1,5–3 dtk)**:
    - Diterapkan pada seluruh percakapan bebas (*free-text natural language*), konsultasi teknis yang kompleks, dan analisis sentimen/keluhan.
    - n8n bertindak sebagai orkestrator yang menjalankan sanitasi Anti-PII, memanggil model Gemini 2.5 Flash, mengenali maksud pengguna (*intent recognition*), dan mengeksekusi penerbitan tiket Jira secara otomatis.
+
+> 📷 **[EVIDENCE PLACEHOLDER #E08: PERCAKAPAN AI BEBAS & KUERI DATA TRANSAKSI SISKEUDES TNT]**
+> - **Kategori Bukti:** Tangkapan Layar Percakapan Chatbot Web / WhatsApp
+> - **Deskripsi:** Percakapan natural beretika kedinasan (*"Bapak/Ibu"*) di mana AI memahami pertanyaan pengguna (misal: status pencairan SPP Desa Kuta, realisasi belanja APBDes, saldo rekening kas desa di Bank BPD, atau status billing pajak) lalu mengambil data akurat dari API sistem secara dinamis.
+> - **Petunjuk:** Tempel screenshot percakapan AI dinamis di bawah ini:
+>
+> ```markdown
+> ![Evidence E08 - AI Conversation Siskeudes TNT Query](evidence/e08_ai_chat_api_fulfillment.png)
+> ```
 
 ---
 

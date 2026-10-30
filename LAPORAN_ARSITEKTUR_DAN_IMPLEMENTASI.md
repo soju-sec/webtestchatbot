@@ -562,6 +562,36 @@ CREATE INDEX idx_chatbot_conv_msg ON chatbot_conversation_messages(conversation_
 
 ---
 
+#### Turn 5: Pengujian Kueri Data Transaksi Siskeudes TNT & Realisasi APBDes (Etika Kedinasan Pemerintahan)
+- **Input Pengguna:**  
+  `"Selamat siang, tolong cek status pencairan SPP nomor 00001/SPP/51.03.01.2001/2026 Desa Kuta"`
+- **Hasil Intent Parser Gemini:**
+  ```json
+  {
+    "intent": "check_spp_status",
+    "confidence": 0.98,
+    "parameters": {
+      "no_spp": "00001/SPP/51.03.01.2001/2026",
+      "desa": "Desa Kuta"
+    },
+    "requires_action": true,
+    "matched_action": "check_spp_status",
+    "reply": "📄 <b>Status Pencairan SPP Siskeudes TNT:</b><br><br>Yth. <b>Kaur Keuangan Desa Kuta</b>, berikut informasi status pencairan SPP transaksi kas desa:<br><br>• <b>Nomor SPP:</b> <code>00001/SPP/51.03.01.2001/2026</code><br>• <b>Desa / Wilayah:</b> Desa Kuta (Pemerintah Kabupaten Badung)<br>• <b>Belanja Bruto:</b> <b>Rp 25.000.000</b><br>• <b>Potongan Pajak:</b> Rp 2.750.000<br>• <b>Nominal Netto:</b> <b style=\"color:#16a34a;\">Rp 22.250.000</b><br>• <b>Status Pembayaran:</b> <b style=\"color:#2563eb;\">BERHASIL_CAIR</b><br>• <b>No. Referensi Bank:</b> <code>REF-BPD-20260117-001</code>"
+  }
+  ```
+- **Aksi Sistem:** AI secara deterministik mengenali parameter `no_spp` dan `desa`, mengeksekusi endpoint `/api/v1/siskeudes/spp/status` pada database riil Siskeudes TNT (`tbspp`, `tbmdesa`, `tbmpemda`), serta menerapkan protokol birokrasi pemerintahan resmi (wajib menyapa *"Bapak/Ibu"*, bebas dari sapaan santai seperti *"Kak/Kakak"*).
+
+> 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #21: PENGUJIAN CHATBOT AI DENGAN INTEGRASI DYNAMIC ENDPOINTS/API SISKEUDES TNT]**
+> - **Kategori Bukti:** Tangkapan Layar Percakapan Chatbot Web (Kueri Status Pencairan SPP / Realisasi APBDes)
+> - **Deskripsi:** AI mengenali intent `check_spp_status` atau `check_realisasi_apbdes` secara deterministik dan menyajikan ringkasan transaksi riil kas desa dengan etika sapaan kedinasan formal (*"Bapak/Ibu"*).
+> - **Petunjuk:** Tempel screenshot obrolan respons AI dinamis di bawah ini:
+>
+> ```markdown
+> ![Evidence 21 - AI Dynamic SPP Status Response](evidence/21_ai_chat_api_fulfillment.png)
+> ```
+
+---
+
 ## 7. Arsitektur Sistem Tiket Gangguan & Notifikasi Realtime Tim Internal
 
 Fitur ini menjadi jembatan otomatis antara keluhan pelanggan di antarmuka obrolan web dengan responsivitas tim teknis/dukungan internal.
@@ -957,6 +987,17 @@ class ChatbotNotificationService
 
 ---
 
+> 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #22: KANAL KOMUNIKASI WHATSAPP EKSEKUTIF (FORMAT MARKDOWN WA MURNI & ANTI-PII)]**
+> - **Kategori Bukti:** Tangkapan Layar Aplikasi WhatsApp (Chatbot Channel Eksekutif)
+> - **Deskripsi:** Respon AI briefing eksekutif yang disajikan langsung di WhatsApp dengan format WhatsApp Markdown murni (*teks tebal*, _miring_, border monospace), bebas dari tag HTML mentah (`<b>`, `<br>`), dan otomatis menyamarkan data sensitif.
+> - **Petunjuk:** Tempel screenshot obrolan WhatsApp eksekutif di bawah ini:
+>
+> ```markdown
+> ![Evidence 22 - Executive WhatsApp Markdown](evidence/22_whatsapp_executive_markdown.png)
+> ```
+
+---
+
 ### 7.5. Antarmuka Klien: Sapaan Personal, Issue Drawer, & Kartu Tiket Visual
 
 1. **Sapaan Awal Personal:**
@@ -1027,6 +1068,43 @@ Integrasi enterprise ke platform ITSM (*IT Service Management*) Atlassian Jira S
    - Setelah tiket dibuat di Jira, nilai `jira_key` (contoh: `SUP-1` s/d `SUP-5`) dan URL jelajah (`jira_url`) disimpan ke tabel `chatbot_tickets` dan dikirimkan kembali ke antarmuka obrolan.
    - Widget merender tombol badge biru `🌐 Jira Service Desk: SUP-XX ↗` yang dapat diklik langsung oleh pengguna maupun tim internal untuk memantau proses penyelesaian tiket.
    - Tersedia script diagnosa mandiri `./check-jira.sh` dan perintah Artisan `php artisan chatbot:jira` untuk memverifikasi konektivitas kapan saja.
+
+### 7.6.1. Lampiran Bukti Screenshot Kendala (Zero AI Leak & Atlassian Jira Cloud REST API Attachment)
+1. **Zero AI Leak Isolation**:
+   - Gambar tangkapan layar (screenshot bukti error/transaksi) **tidak pernah dikirim ke LLM (Gemini Vision)** untuk melindungi kerahasiaan data keuangan desa, saldo rekening, dan NIK dari transmisi pihak ketiga.
+   - Screenshot dibungkus bersama payload formulir laporan, disimpan pada storage lokal backend Laravel (`storage/app/chatbot_attachments`), dan langsung di-upload ke issue Jira Service Management menggunakan Atlassian Cloud REST API (`POST /rest/api/2/issue/{issueIdOrKey}/attachments`) dengan header `X-Atlassian-Token: no-check`.
+2. **Akses Terproteksi Backend**:
+   - Endpoint terisolasi `GET /api/v1/tickets/{ticketNumber}/attachment` menyajikan file bukti gambar secara aman bagi tim investigasi internal.
+
+> 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #19: LAMPIRAN SCREENSHOT TERUNGGAH DI JIRA SERVICE MANAGEMENT (SUP-16)]**
+> - **Kategori Bukti:** Tangkapan Layar Web Atlassian Jira Cloud (`https://imtekservice.atlassian.net`)
+> - **Deskripsi:** Detail issue Jira `SUP-16` yang memperlihatkan attachment file gambar bukti kendala (`ss_TCK-20261030-FD05_6ae41b624b0e8.png` / ID `10000`) terlampir otomatis melalui Atlassian REST API.
+> - **Petunjuk:** Tempel screenshot issue Jira SUP-16 di bawah ini:
+>
+> ```markdown
+> ![Evidence 19 - Jira Issue Screenshot Attached](evidence/19_jira_ticket_screenshot_attached.png)
+> ```
+
+---
+
+### 7.6.2. Mitigasi Kerentanan Anti-Account Takeover (Anti-ATO) & Otorisasi Reset Password Admin DPMD Kabupaten
+1. **Analisis Kerentanan Akun**:
+   - Jika pengguna luar mengajukan permohonan reset password akun desa melalui chatbot dan mencantumkan nomor WhatsApp miliknya, sistem konvensional rentan terhadap pengambilalihan akun (*Account Takeover*).
+2. **Solusi Rekayasa Berjenjang**:
+   - Kategori kendala login / reset akun secara otomatis mendeteksi kabupaten pelapor dan mencocokkan nomor WhatsApp resmi **Admin DPMD (Dinas Pemberdayaan Masyarakat dan Desa) Kabupaten** melalui direktori terverifikasi (`DPMD_DIRECTORY`).
+   - Tautan otorisasi pemulihan akun dialihkan **eksklusif ke nomor WhatsApp resmi Admin DPMD**, bukan ke nomor kontak yang dicantumkan pelapor di form.
+   - Pelapor desa hanya menerima tanda terima konfirmasi bahwa tiket telah diteruskan ke Admin DPMD Kabupaten masing-masing.
+3. **Portal Otorisasi Web DPMD**:
+   - Admin DPMD menerima tautan ber-token rahasia (`GET /api/v1/dpmd/auth-reset/{ticketNumber}?token=...`) untuk meninjau identitas pelapor dan menyetujui atau menolak permohonan secara terverifikasi.
+
+> 📷 **[PLACEHOLDER BUKTI IMPLEMENTASI #20: ALUR OTORISASI RESET PASSWORD KE WHATSAPP & WEB PORTAL ADMIN DPMD]**
+> - **Kategori Bukti:** Tangkapan Layar Aplikasi WhatsApp & Web Browser Portal DPMD
+> - **Deskripsi:** Bukti pesan WhatsApp otorisasi yang diterima Admin DPMD Kabupaten Bogor (`6289664744020`) beserta tampilan web portal otorisasi DPMD untuk tiket `#TCK-20261030-5207`.
+> - **Petunjuk:** Tempel screenshot pesan WhatsApp dan portal DPMD di bawah ini:
+>
+> ```markdown
+> ![Evidence 20 - WhatsApp DPMD Alert & Web Portal](evidence/20_dpmd_auth_whatsapp_and_portal.png)
+> ```
 
 ---
 

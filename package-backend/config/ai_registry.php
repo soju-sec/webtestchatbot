@@ -25,92 +25,91 @@ return [
     */
     'endpoints' => [
         [
-            'action' => 'get_store_metrics',
-            'method' => 'GET',
-            'path' => '/api/v1/store/metrics',
-            'description' => 'Melihat ringkasan metrik performa toko (total earnings, total orders, customers, balance)',
-            'params' => [],
-            'current_data' => [
-                'total_earnings' => '$559k (+16.24%)',
-                'orders' => '36,894 (-3.57%)',
-                'customers' => '183M (+29.08%)',
-                'my_balance' => '$165k',
-                'conversion_ratio' => '18%',
-                'recent_summary' => '7,585 orders ($22k earnings, 367 refunds)'
-            ]
-        ],
-        [
-            'action' => 'get_monthly_revenue',
-            'method' => 'GET',
-            'path' => '/api/v1/store/revenue/monthly',
-            'description' => 'Melihat rincian performa revenue, pendapatan/earnings, jumlah pesanan (orders), dan refund bulanan (Januari s/d Desember)',
-            'params' => ['month', 'year'],
-            'current_data' => [
-                'Jan' => ['orders' => 34, 'earnings' => '$89.25k', 'refunds' => 8],
-                'Feb' => ['orders' => 65, 'earnings' => '$98.58k', 'refunds' => 12],
-                'Mar' => ['orders' => 46, 'earnings' => '$68.74k', 'refunds' => 7],
-                'Apr' => ['orders' => 68, 'earnings' => '$108.87k', 'refunds' => 17],
-                'May' => ['orders' => 49, 'earnings' => '$77.54k', 'refunds' => 21],
-                'Jun' => ['orders' => 61, 'earnings' => '$84.03k', 'refunds' => 11],
-                'Jul' => ['orders' => 42, 'earnings' => '$51.24k', 'refunds' => 5],
-                'Aug' => ['orders' => 44, 'earnings' => '$28.57k', 'refunds' => 9],
-                'Sep' => ['orders' => 78, 'earnings' => '$92.57k', 'refunds' => 7],
-                'Oct' => ['orders' => 52, 'earnings' => '$42.36k', 'refunds' => 29],
-                'Nov' => ['orders' => 63, 'earnings' => '$88.51k', 'refunds' => 12],
-                'Dec' => ['orders' => 67, 'earnings' => '$36.57k', 'refunds' => 35],
-            ]
-        ],
-        [
-            'action' => 'export_store_report_excel',
-            'method' => 'GET',
-            'path' => '/api/v1/reports/store-metrics/excel',
-            'description' => 'Mengunduh atau meminta file laporan data performa toko dan rincian revenue bulanan dalam format spreadsheet Excel (.xlsx / .csv)',
-            'params' => ['year', 'format'],
-            'current_data' => [
-                'filename' => 'Laporan_Eksekutif_Performa_2026.csv',
-                'download_path' => '/api/v1/reports/store-metrics/excel',
-                'description' => 'File Excel spreadsheet lengkap berisi data Orders, Gross Earnings, Refunds, dan Rasio Konversi per bulan Januari s/d Desember'
-            ]
-        ],
-        [
-            'action' => 'get_revenue_chart',
-            'method' => 'GET',
-            'path' => '/api/v1/reports/store-metrics/chart',
-            'description' => 'Menampilkan atau mengirimkan grafik/chart visual tren performa penjualan dan pendapatan bulanan (bar chart & line orders)',
-            'params' => ['chart_type', 'year'],
-            'current_data' => [
-                'chart_url' => 'https://quickchart.io/chart?w=600&h=380&devicePixelRatio=2&c=%7Btype%3A%27bar%27%2Cdata%3A%7Blabels%3A%5B%27Jan%27%2C%27Feb%27%2C%27Mar%27%2C%27Apr%27%2C%27Mei%27%2C%27Jun%27%2C%27Jul%27%2C%27Agu%27%2C%27Sep%27%2C%27Okt%27%2C%27Nov%27%2C%27Des%27%5D%2Cdatasets%3A%5B%7Blabel%3A%27Revenue%20(%24k)%27%2Cdata%3A%5B89.25%2C98.58%2C68.74%2C108.87%2C77.54%2C84.03%2C51.24%2C28.57%2C92.57%2C42.36%2C88.51%2C36.57%5D%2CbackgroundColor%3A%27%23128c7e%27%7D%2C%7Btype%3A%27line%27%2Clabel%3A%27Orders%27%2Cdata%3A%5B34%2C65%2C46%2C68%2C49%2C61%2C42%2C44%2C78%2C52%2C63%2C67%5D%2CborderColor%3A%27%23f59e0b%27%7D%5D%7D%7D',
-                'summary' => 'Grafik Tren Penjualan 2026: Puncak di April ($108.87k), terendah di Agustus ($28.57k)'
-            ]
-        ],
-        [
-            'action' => 'get_user_profile',
-            'method' => 'GET',
-            'path' => '/api/v1/user/{user_id}/profile',
-            'description' => 'Melihat data profil dan status akun pengguna saat ini',
-            'params' => []
-        ],
-        [
-            'action' => 'get_transactions',
-            'method' => 'GET',
-            'path' => '/api/v1/user/{user_id}/transactions',
-            'description' => 'Melihat riwayat transaksi penjualan dan order pengguna',
-            'params' => ['status', 'limit', 'date_from', 'date_to']
-        ],
-        [
-            'action' => 'check_spp_cair',
+            'action' => 'check_spp_status',
             'method' => 'GET',
             'path' => '/api/v1/siskeudes/spp/status',
-            'description' => 'Mengecek status pencairan SPP di Siskeudes-Link / CMS Bank Desa berdasarkan nomor SPP atau nomor kwitansi (waktu transaksi, no referensi bank, status pembayaran)',
-            'params' => ['no_spp', 'no_kwitansi'],
+            'description' => 'Mengecek status pencairan SPP desa (Surat Permintaan Pembayaran), rincian belanja bruto, potongan pajak, nominal netto, alur verifikasi berkas, dan nomor referensi bank BPD',
+            'params' => ['no_spp', 'no_kwitansi', 'kode_cms', 'desa', 'kabupaten', 'tahun'],
             'current_data' => [
-                'status_pembayaran' => 'Sudah dibayarkan',
-                'keterangan_pembayaran' => 'Transaksi pokok berhasil dibayarkan',
-                'no_referensi_bank' => '001637',
-                'waktu_transaksi' => '03-09-2024 15:12:06',
-                'spp_contoh' => '0015/SPP/12.2001/2024'
+                'no_spp_contoh' => '00001/SPP/51.03.01.2001/2026',
+                'desa' => 'Desa Kuta',
+                'kabupaten' => 'Pemerintah Kabupaten Badung',
+                'uraian_belanja' => 'Belanja Operasional Kantor dan Alat Tulis Kantor Desa Kuta Tahap I',
+                'nominal_bruto' => 'Rp 25.000.000',
+                'potongan_pajak' => 'Rp 2.750.000',
+                'nominal_netto' => 'Rp 22.250.000',
+                'status_pembayaran' => 'BERHASIL_CAIR',
+                'bank_tujuan' => 'BPD Bali',
+                'rekening_tujuan' => '101.02.0001',
+                'no_referensi_bank' => 'REF-BPD-20260117-001',
+                'alur_verifikasi' => 'Siskeudes Online Final -> Upload SPTJB & SPP2 -> Verifikasi Sekdes -> Approval Kades'
             ]
         ],
+        [
+            'action' => 'check_realisasi_apbdes',
+            'method' => 'GET',
+            'path' => '/api/realisasi',
+            'description' => 'Melihat rekapitulasi realisasi anggaran belanja dan pendapatan APBDes per bidang kegiatan dan per bulan pada tahun anggaran berjalan',
+            'params' => ['desa', 'tahun', 'bulan', 'bidang'],
+            'current_data' => [
+                'tahun_anggaran' => '2026',
+                'pagu_anggaran_desa' => 'Rp 1.450.000.000',
+                'total_realisasi_belanja' => 'Rp 825.500.000 (56.9%)',
+                'sisa_anggaran_kas' => 'Rp 624.500.000',
+                'rincian_bidang' => [
+                    'Penyelenggaraan Pemerintahan Desa' => 'Rp 320.000.000',
+                    'Pelaksanaan Pembangunan Desa' => 'Rp 365.500.000',
+                    'Pembinaan Kemasyarakatan' => 'Rp 85.000.000',
+                    'Pemberdayaan Masyarakat' => 'Rp 55.000.000'
+                ]
+            ]
+        ],
+        [
+            'action' => 'check_saldo_kas_desa',
+            'method' => 'GET',
+            'path' => '/api/mock-siskeudes/ceksaldobank',
+            'description' => 'Pengecekan saldo rekening kas desa (RKD) yang terdaftar di Bank BPD mitra untuk memastikan kecukupan dana pencairan non-tunai',
+            'params' => ['rekening_desa', 'bank'],
+            'current_data' => [
+                'nama_rekening' => 'Kas Desa Kuta',
+                'nomor_rekening' => '101.02.0001',
+                'bank_mitra' => 'BPD Bali',
+                'saldo_tersedia' => 'Rp 624.500.000',
+                'status_rekening' => 'AKTIF (Siap Transaksi)'
+            ]
+        ],
+        [
+            'action' => 'check_status_pajak_billing',
+            'method' => 'GET',
+            'path' => '/api/cms/pajak-belumbayar',
+            'description' => 'Pengecekan status potongan pajak PPh/PPN transaksi belanja desa dan validasi masa aktif kode ID Billing DJP',
+            'params' => ['id_billing', 'no_spp'],
+            'current_data' => [
+                'id_billing' => 'CMS2026001001',
+                'status_billing' => 'TERBAYAR OTOMATIS VIA CMS BANK',
+                'ntpn' => '98A17BC40129',
+                'keterangan' => 'Pajak telah terdebet otomatis saat proses pencairan SPP'
+            ]
+        ],
+        [
+            'action' => 'export_laporan_tnt_excel',
+            'method' => 'GET',
+            'path' => '/api/v1/reports/store-metrics/excel',
+            'description' => 'Mengunduh file rekapitulasi laporan transaksi pencairan non-tunai Siskeudes TNT dalam format spreadsheet Excel (.xlsx / .csv)',
+            'params' => ['tahun', 'format'],
+            'current_data' => [
+                'filename' => 'Rekap_Pencairan_Siskeudes_TNT_2026.csv',
+                'download_path' => '/api/v1/reports/store-metrics/excel',
+                'description' => 'Rekapitulasi lengkap transaksi pencairan SPP, belanja desa, potongan pajak, dan transfer CMS Bank'
+            ]
+        ],
+        [
+            'action' => 'report_customer_issue',
+            'method' => 'POST',
+            'path' => '/api/v1/tickets/public-submit',
+            'description' => 'Melaporkan kendala operasional transaksi non-tunai Siskeudes TNT, error CMS Bank Desa, akun terkunci, atau kegagalan verifikasi berkas, dan menerbitkan tiket resmi ke Jira SUP',
+            'params' => ['category', 'description', 'no_spp', 'no_kwitansi', 'urgency', 'screenshot']
+        ]
     ],
 
     /*
@@ -198,7 +197,7 @@ return [
         'data_discrepancy' => [
             'topic' => 'Data Tidak Sesuai / Selisih Angka / Inkonsistensi Data',
             'keywords' => ['tidak sesuai', 'salah data', 'selisih', 'tidak cocok', 'data beda', 'salah angka', 'angka tidak pas'],
-            'intro' => 'Baik Kak, kami siap bantu buatkan tiket investigasi selisih data ke tim teknis & verifikasi. Agar pengecekan dapat segera diproses, mohon lengkapi format verifikasi berikut ya Kak:',
+            'intro' => 'Baik Bapak/Ibu, kami siap membantu menerbitkan tiket investigasi selisih data kepada tim teknis & verifikasi. Agar pengecekan dapat segera diproses, mohon lengkapi format verifikasi berikut:',
             'format_template' => "📋 <b>Format Verifikasi Data:</b><br>" .
                 "• <b>Menu / Fitur:</b> [misal: Laporan Penjualan / Riwayat Transaksi]<br>" .
                 "• <b>ID Transaksi / No Referensi:</b> [misal: TRX-202610-001]<br>" .
